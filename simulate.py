@@ -45,7 +45,17 @@ def simulate_roe(city: str, sliders: dict, config: dict,
     roe_base     = b["roe_base"]
 
     beta_c  = config["coefficients"]["beta_demand"][q]
-    gamma_c = config["coefficients"]["gamma_cost"][city]
+    gamma_map = config["coefficients"]["gamma_cost"]
+    if city in gamma_map:
+        gamma_c = gamma_map[city]
+    else:
+        # 该区域未恢复出 γ(如 battery 供应数据缺失):退回同象限已恢复区域的均值,
+        # 再退回全局均值。保证引擎不因单区域缺系数而崩。
+        same_q = [v for k, v in gamma_map.items()
+                  if config.get("regions", {}).get(k, {}).get("quadrant") == q]
+        pool = same_q if same_q else list(gamma_map.values())
+        gamma_c = {"value": float(np.mean([g["value"] for g in pool])),
+                   "std_err": float(np.mean([g["std_err"] for g in pool]))}
 
     # slider values
     dp   = sliders.get("price_change", 0.0) / 100.0      # permanent price move
