@@ -1,0 +1,9 @@
+nev.db
+*.db
+*.sqlite
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.env
+.streamlit/secrets.toml
+.DS_Store
