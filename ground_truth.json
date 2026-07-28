@@ -1,0 +1,30 @@
+{
+  "seed": 42,
+  "beta_demand": {
+    "Q1": -1.3,
+    "Q2": -1.1,
+    "Q3": -1.8,
+    "Q4": -2.4
+  },
+  "gamma_base": {
+    "Q1": 0.55,
+    "Q2": 0.45,
+    "Q3": 0.4,
+    "Q4": 0.6
+  },
+  "theta_q": {
+    "Q1": 0.4,
+    "Q2": 0.4,
+    "Q3": 0.25,
+    "Q4": 0.1
+  },
+  "lambda_batt": 0.35,
+  "gamma_effective": {
+    "Shanghai": 0.5047,
+    "Shenzhen": 0.3568,
+    "Hefei": 0.4125,
+    "Changzhou": 0.3717,
+    "Xian": 0.6249,
+    "Liuzhou": 0.333
+  }
+}

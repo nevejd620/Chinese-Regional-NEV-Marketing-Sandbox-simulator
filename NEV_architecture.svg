@@ -1,0 +1,230 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="2200" viewBox="0 0 1180 2200" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1 L8 5 L2 9" fill="none" stroke="#5F5E5A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1 L8 5 L2 9" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <rect width="1180" height="2200" fill="#FBFAF8"/>
+
+  <!-- ================= TITLE ================= -->
+  <text x="48" y="56" font-size="30" font-weight="700" fill="#1A1A18">NEV 区域博弈沙盘 · 系统架构总览</text>
+  <text x="48" y="86" font-size="15" fill="#6B6A66">博弈驱动的动态定价决策系统  ·  三层数据架构 × 双维定位 × 交互—RAG 闭环</text>
+  <line x1="48" y1="104" x2="1132" y2="104" stroke="#E0DED8" stroke-width="1"/>
+
+  <!-- ================= BLOCK A: 三层数据架构 ================= -->
+  <text x="48" y="148" font-size="20" font-weight="700" fill="#1A1A18">① 三层数据架构 · 解耦与职责分离</text>
+
+  <!-- SQL -->
+  <rect x="48" y="168" width="352" height="256" rx="14" fill="#EAF1FB" stroke="#B9D2F0" stroke-width="1"/>
+  <text x="72" y="200" font-size="17" font-weight="700" fill="#0C447C">SQL · 数值资产层</text>
+  <text x="72" y="224" font-size="13" fill="#185FA5">带时间戳/区位·象限标签的原子流水</text>
+  <text x="72" y="256" font-size="13" fill="#333">· sales_transactions 销售流水（日）</text>
+  <text x="72" y="280" font-size="13" fill="#333">· macro_shocks_log 宏观冲击（全国日）</text>
+  <text x="72" y="304" font-size="13" fill="#333">· regional_infra 区域禀赋（半静态）</text>
+  <text x="72" y="328" font-size="13" fill="#333">· supply_chain_costs 原子成本（日）</text>
+  <text x="72" y="352" font-size="13" fill="#333">· financial_snapshots 财务截面</text>
+  <text x="72" y="376" font-size="13" fill="#333">· model_dim 车型维度</text>
+  <text x="72" y="406" font-size="12" fill="#6B6A66" font-style="italic">存「共同的原始事实」，异质留给系数层</text>
+
+  <!-- JSON -->
+  <rect x="414" y="168" width="352" height="256" rx="14" fill="#EDEBFB" stroke="#CBC5F0" stroke-width="1"/>
+  <text x="438" y="200" font-size="17" font-weight="700" fill="#3C3489">JSON · 规则与系数层</text>
+  <text x="438" y="224" font-size="13" fill="#534AB7">全期固定的常数与关系</text>
+  <text x="438" y="256" font-size="13" fill="#333">· β_demand 价格弹性 / γ 成本传导</text>
+  <text x="438" y="280" font-size="13" fill="#333">· logit b、aᵢ 种子、θ_q 竞争强度</text>
+  <text x="438" y="304" font-size="13" fill="#333">· CAPM：ERP、equity_beta（象限级）</text>
+  <text x="438" y="328" font-size="13" fill="#333">· pb_multiple 象限估值倍数</text>
+  <text x="438" y="352" font-size="13" fill="#333">· 各象限定价带 / 生态投资权重</text>
+  <text x="438" y="376" font-size="13" fill="#333">· 税率、风险溢价等死常数</text>
+  <text x="438" y="406" font-size="12" fill="#6B6A66" font-style="italic">系数是「设定并验证」，非「实证发现」</text>
+
+  <!-- MODEL -->
+  <rect x="780" y="168" width="352" height="256" rx="14" fill="#E6F5EF" stroke="#B4E0CE" stroke-width="1"/>
+  <text x="804" y="200" font-size="17" font-weight="700" fill="#0F6E56">模型 · 两个简单模型</text>
+  <text x="804" y="224" font-size="13" fill="#1D9E75">无神经网络，可解释</text>
+  <text x="804" y="254" font-size="13.5" font-weight="700" fill="#0F6E56">离线标定（跑一次）</text>
+  <text x="804" y="276" font-size="13" fill="#333">  SQL 原子数据 → OLS/logit 回归</text>
+  <text x="804" y="298" font-size="13" fill="#333">  → 恢复 β/γ/b → 写入 JSON</text>
+  <text x="804" y="322" font-size="13" fill="#333">  → 参数恢复表（真值 vs 估计）</text>
+  <text x="804" y="352" font-size="13.5" font-weight="700" fill="#0F6E56">在线推演（每次交互）</text>
+  <text x="804" y="374" font-size="13" fill="#333">  180 天快慢两层引擎 + 四把 reward</text>
+  <text x="804" y="406" font-size="12" fill="#6B6A66" font-style="italic">数据流方向：标定 SQL→JSON；推演读 JSON</text>
+
+  <!-- arrows between the three -->
+  <line x1="400" y1="296" x2="412" y2="296" stroke="#5F5E5A" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="766" y1="296" x2="778" y2="296" stroke="#5F5E5A" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <!-- ================= BLOCK B: 双维定位 ================= -->
+  <text x="48" y="480" font-size="20" font-weight="700" fill="#1A1A18">② 双维定位 · 选址（禀赋）× 象限（战略）</text>
+  <text x="48" y="504" font-size="13" fill="#6B6A66">绝对估值＝企业内生能力（锚）  ·  相对估值＝选址调节 × 象限定位（承载博弈）</text>
+
+  <!-- 选址层 -->
+  <rect x="48" y="522" width="540" height="150" rx="14" fill="#FFF3E9" stroke="#F3CDA9" stroke-width="1"/>
+  <text x="72" y="552" font-size="16" font-weight="700" fill="#9A4B12">选址层 · 要素禀赋（不可调，给定牌面）</text>
+  <text x="72" y="580" font-size="13" fill="#333">财政补贴力度 · 本地市场规模 · GDP/碳排考核</text>
+  <text x="72" y="604" font-size="13" fill="#333">基础设施 · 锂电/半导体产业配套（定 γ 基础暴露）</text>
+  <text x="72" y="628" font-size="13" fill="#333">技术/劳动力/土地要素成本</text>
+  <text x="72" y="656" font-size="12" fill="#9A4B12" font-style="italic">→ 载入该地 JSON 常数 + SQL 历史锚点</text>
+
+  <!-- 象限层 -->
+  <rect x="604" y="522" width="528" height="150" rx="14" fill="#EDEBFB" stroke="#CBC5F0" stroke-width="1"/>
+  <text x="628" y="552" font-size="16" font-weight="700" fill="#3C3489">象限层 · 战略定位（用户选，改写量程）</text>
+  <text x="628" y="580" font-size="13" fill="#333">定价带中枢与上下限 · 电池自供率区间（放大/抑制 γ）</text>
+  <text x="628" y="604" font-size="13" fill="#333">研发/服务投入档位（喂 aᵢ）· 进入哪个竞技场 θ_q</text>
+  <text x="628" y="628" font-size="13" fill="#333">切换 RAG 区域×象限硬过滤</text>
+  <text x="628" y="656" font-size="12" fill="#3C3489" font-style="italic">→ 象限重写「滑块能怎么动」，非数值下游标签</text>
+
+  <!-- 2x2 quadrant mini map -->
+  <text x="48" y="716" font-size="14" font-weight="700" fill="#1A1A18">四象限竞技场（全国市场按象限分割，同象限跨区域竞争，θ→完全竞争）</text>
+  <g>
+    <rect x="48" y="730" width="255" height="66" rx="8" fill="#E6F5EF" stroke="#B4E0CE"/>
+    <text x="62" y="752" font-size="13" font-weight="700" fill="#0F6E56">Q1 纯电先锋</text>
+    <text x="62" y="770" font-size="11.5" fill="#555">纯电·AI服务生态 · 生态竞争</text>
+    <text x="62" y="786" font-size="10.5" fill="#888">锚：蔚来·小鹏·特斯拉* (*仅比率/博弈/RAG，不落库)</text>
+
+    <rect x="311" y="730" width="255" height="66" rx="8" fill="#E6F5EF" stroke="#B4E0CE"/>
+    <text x="325" y="754" font-size="13" font-weight="700" fill="#0F6E56">Q2 全路线高端</text>
+    <text x="325" y="774" font-size="11.5" fill="#555">多品牌·混动高端 · 生态竞争</text>
+    <text x="325" y="790" font-size="10.5" fill="#888">锚：理想·赛力斯·吉利</text>
+
+    <rect x="48" y="804" width="255" height="66" rx="8" fill="#FDECE4" stroke="#F3CDA9"/>
+    <text x="62" y="828" font-size="13" font-weight="700" fill="#9A4B12">Q4 极致性价比</text>
+    <text x="62" y="848" font-size="11.5" fill="#555">纯电代步 · 价格战 θ→0 逼近完全竞争</text>
+    <text x="62" y="864" font-size="10.5" fill="#888">锚：五菱(估算)·比亚迪入门系</text>
+
+    <rect x="311" y="804" width="255" height="66" rx="8" fill="#FDECE4" stroke="#F3CDA9"/>
+    <text x="325" y="828" font-size="13" font-weight="700" fill="#9A4B12">Q3 垂直整合</text>
+    <text x="325" y="848" font-size="11.5" fill="#555">国产基盘·自供电池 · 销量/比较优势</text>
+    <text x="325" y="864" font-size="10.5" fill="#888">锚：比亚迪·长安</text>
+  </g>
+
+  <!-- 快慢两层 game -->
+  <text x="604" y="716" font-size="14" font-weight="700" fill="#1A1A18">博弈 · 快慢两层（时间尺度解耦）</text>
+  <rect x="604" y="730" width="528" height="62" rx="10" fill="#EDEBFB" stroke="#CBC5F0"/>
+  <text x="620" y="753" font-size="13.5" font-weight="700" fill="#3C3489">慢层 · 生态竞争（季度）</text>
+  <text x="620" y="774" font-size="12" fill="#444">五体系投资累积生态存量 → 抬升 aᵢ · 竞合＝联盟共享存量</text>
+  <line x1="868" y1="794" x2="868" y2="802" stroke="#5F5E5A" stroke-width="1.4" marker-end="url(#ar)"/>
+  <text x="880" y="800" font-size="10.5" fill="#6B6A66">aᵢ↓</text>
+  <line x1="770" y1="802" x2="770" y2="794" stroke="#5F5E5A" stroke-width="1.4" marker-end="url(#ar)"/>
+  <text x="700" y="800" font-size="10.5" fill="#6B6A66">利润↑供血</text>
+  <rect x="604" y="806" width="528" height="64" rx="10" fill="#EAF1FB" stroke="#B9D2F0"/>
+  <text x="620" y="829" font-size="13.5" font-weight="700" fill="#0C447C">快层 · 价格博弈（每日）</text>
+  <text x="620" y="850" font-size="12" fill="#444">给定 aᵢ，序贯最优反应 → 份额·利润·ROIC</text>
+  <text x="620" y="866" font-size="11.5" fill="#666">控制：ΔP · 先手/后手 · θ 竞争强度</text>
+
+  <!-- ================= BLOCK C: 交互 + RAG 闭环 ================= -->
+  <text x="48" y="922" font-size="20" font-weight="700" fill="#1A1A18">③ 一次交互的完整数据流 · 双轨与 Action-triggered RAG</text>
+
+  <!-- user action -->
+  <rect x="48" y="946" width="1084" height="50" rx="12" fill="#1F3864"/>
+  <text x="70" y="977" font-size="15" font-weight="700" fill="#FFFFFF">用户动作：选选址 → 选象限 → 拨战术旋钮（ΔP / 生态投资 / 联盟）  或  选预设战略 + 竞争目的</text>
+
+  <!-- split to two tracks -->
+  <line x1="300" y1="996" x2="300" y2="1024" stroke="#5F5E5A" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="880" y1="996" x2="880" y2="1024" stroke="#5F5E5A" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <!-- Track 1 -->
+  <rect x="48" y="1026" width="560" height="300" rx="14" fill="#F4F3F0" stroke="#DAD8D2"/>
+  <text x="72" y="1056" font-size="16" font-weight="700" fill="#1A1A18">轨道一 · 确定性推演引擎（先算，物理算账）</text>
+  <text x="72" y="1086" font-size="13" fill="#333">1. SQL 动态 JOIN 聚合 → 载入该 选址×象限 参数</text>
+  <text x="72" y="1112" font-size="13" fill="#333">2. 三重解耦博弈：分层 × 分场 × 分策略</text>
+  <text x="72" y="1138" font-size="13" fill="#333">3. 180 天推演：快层价格路径 + 慢层生态累积</text>
+  <text x="72" y="1164" font-size="13" fill="#333">4. 财务清算：杜邦三因子 → ROIC / WACC</text>
+  <text x="72" y="1190" font-size="13" fill="#333">5. 价值裁决：ROIC−WACC 价差 · EVA 前沿</text>
+  <rect x="72" y="1210" width="512" height="44" rx="8" fill="#E6F5EF" stroke="#B4E0CE"/>
+  <text x="86" y="1237" font-size="12.5" fill="#0F6E56">产出「损益宽表」：日期×战略×{份额,利润,EVA,生态,ROIC,WACC}</text>
+  <rect x="72" y="1262" width="512" height="46" rx="8" fill="#FFF3E9" stroke="#F3CDA9"/>
+  <text x="86" y="1283" font-size="12.5" fill="#9A4B12">四把可切换 reward 尺子：份额 / 利润 / EVA / 生态</text>
+  <text x="86" y="1300" font-size="12" fill="#9A4B12" font-style="italic">存一次·切四次 → 排名翻转：赢销量 ≠ 赢价值</text>
+
+  <!-- Track 2 -->
+  <rect x="620" y="1026" width="512" height="300" rx="14" fill="#F4F3F0" stroke="#DAD8D2"/>
+  <text x="644" y="1056" font-size="16" font-weight="700" fill="#1A1A18">轨道二 · Action-triggered RAG（后说，定性找补）</text>
+  <text x="644" y="1086" font-size="13" fill="#333">1. 触发源＝动作，非提问；携带结构化状态</text>
+  <text x="644" y="1108" font-size="13" fill="#666">   (region, quadrant, strategy, shock)</text>
+  <text x="644" y="1134" font-size="13" fill="#333">2. 查询重写 → 向量检索 + 硬过滤</text>
+  <text x="644" y="1156" font-size="13" fill="#666">   WHERE region=… AND quadrant=…</text>
+  <text x="644" y="1182" font-size="13" fill="#333">3. 捞地方产业链文献（离线 .npy 嵌入 + numpy）</text>
+  <text x="644" y="1208" font-size="13" fill="#333">4. 消费轨道一的确定性输出，只做解读</text>
+  <rect x="644" y="1226" width="464" height="46" rx="8" fill="#EAF1FB" stroke="#B9D2F0"/>
+  <text x="658" y="1247" font-size="12.5" fill="#0C447C">红线：LLM 幻觉永远够不到财务数字</text>
+  <text x="658" y="1264" font-size="12" fill="#0C447C" font-style="italic">时序保证：action 先算定，RAG 后配话</text>
+  <text x="644" y="1298" font-size="12.5" fill="#6B6A66" font-style="italic">部署：砍 Chroma/重排，演示模式缓存简报</text>
+
+  <!-- merge -->
+  <line x1="328" y1="1326" x2="328" y2="1356" stroke="#5F5E5A" stroke-width="1.6"/>
+  <line x1="876" y1="1326" x2="876" y2="1356" stroke="#5F5E5A" stroke-width="1.6"/>
+  <line x1="328" y1="1356" x2="876" y2="1356" stroke="#5F5E5A" stroke-width="1.6"/>
+  <line x1="590" y1="1356" x2="590" y2="1380" stroke="#5F5E5A" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <rect x="290" y="1382" width="600" height="54" rx="12" fill="#1F3864"/>
+  <text x="590" y="1408" font-size="14.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">汇合 · Agent 编排（DeepSeek）</text>
+  <text x="590" y="1426" font-size="12" fill="#C9D6EA" text-anchor="middle">[断裂 ROE/EVA 数值] + [地方文献] → 总裁办简报 → python-docx 导出</text>
+
+  <!-- time-series generation note -->
+  <rect x="48" y="1446" width="1084" height="86" rx="12" fill="#FFF8F2" stroke="#F3CDA9" stroke-width="1"/>
+  <text x="70" y="1472" font-size="15" font-weight="700" fill="#9A4B12">时序生成 · 情况一：真实锚点只取 2025，DGP 合成三年（1095 天）</text>
+  <text x="70" y="1496" font-size="12.5" fill="#333">真实财报锚点（点）＝2025 一年，只画各象限比率盒子（毛利率/ASP/BOM占比/周转/杠杆/研发强度）—— 量级校准</text>
+  <text x="70" y="1516" font-size="12.5" fill="#333">三年时序（线）＝ DGP 生成：宏观路径 AR(1)/GBM · 起点盒子来自 2025 锚点 · 盒子随时间漂移（可调旋钮，模拟毛利逐年被价格战压薄）· 每日抖动</text>
+
+  <!-- ================= BLOCK D: DGP 分层生成 ================= -->
+  <text x="48" y="1584" font-size="20" font-weight="700" fill="#1A1A18">④ 数据生成机制 · 分层：A类因果（进回归）vs B类潜变量画像（不进回归）</text>
+
+  <!-- B latent -->
+  <rect x="48" y="1606" width="536" height="120" rx="12" fill="#E6F5EF" stroke="#B4E0CE"/>
+  <text x="68" y="1632" font-size="15" font-weight="700" fill="#0F6E56">B类 · 潜变量画像（不进回归 → 可联合约束）</text>
+  <text x="68" y="1654" font-size="12" fill="#333">象限 → 抽 positioning_score∈[0,1] → 驱动横截面比率</text>
+  <text x="68" y="1674" font-size="12" fill="#333">ASP / 毛利率 / 周转 / 研发率 / 杠杆 / 电池占比</text>
+  <text x="68" y="1694" font-size="12" fill="#333">截断正态（μ,σ 落 sheet8 区间）· 自动相关自洽</text>
+  <text x="68" y="1714" font-size="11.5" fill="#0F6E56" font-style="italic">采纳 ChatGPT：潜变量驱动 + 联合约束 + Truncated Normal</text>
+
+  <!-- A causal -->
+  <rect x="604" y="1606" width="528" height="120" rx="12" fill="#FDECE4" stroke="#F3CDA9"/>
+  <text x="624" y="1632" font-size="15" font-weight="700" fill="#9A4B12">A类 · 因果行为（进回归 → 必须纯因果+独立噪声）</text>
+  <text x="624" y="1654" font-size="12" fill="#333">Shock(AR/GBM) → C = α₂ + γ·Shock + ε₂</text>
+  <text x="624" y="1674" font-size="12" fill="#333">P(外生+扰动) → Q = exp(α + β·lnP + ε₁)</text>
+  <text x="624" y="1694" font-size="12" fill="#333">β/γ 设定真值 · 噪声独立 · 供回归恢复</text>
+  <text x="624" y="1714" font-size="11.5" fill="#9A4B12" font-style="italic">红线：潜变量不进 P/Q/C，否则共线性使恢复失败</text>
+
+  <!-- interface note -->
+  <rect x="48" y="1734" width="1084" height="0" rx="0" fill="none"/>
+  <text x="48" y="1750" font-size="11.5" fill="#6B6A66">接口：B类潜变量定「盒子位置」（画像中枢）→ A类因果方程在中枢附近按 P/Q/C 关系波动 → 会计恒等式勾稽收口（收入=P×Q，毛利=收入−成本−折旧）。</text>
+
+  <!-- lifecycle strip -->
+  <rect x="48" y="1766" width="1084" height="70" rx="12" fill="#EDEBFB" stroke="#CBC5F0" stroke-width="1"/>
+  <text x="68" y="1790" font-size="14" font-weight="700" fill="#3C3489">生命周期 · 象限(横向基线) × maturity(纵向残差)</text>
+  <text x="68" y="1811" font-size="12" fill="#333">象限编码成熟度基线（Q1 偏成长/薄毛利·Q3Q4 偏成熟/高周转）＋ 单元 maturity_offset（同象限先后，如蔚来 vs 小鹏）＋ 三年轨迹沿此爬升。</text>
+  <text x="68" y="1828" font-size="11.5" fill="#3C3489" font-style="italic">不新增独立生命周期轴（与象限冗余）；只加小残差 + 让漂移旋钮升级为分阶段轨迹。positioning=站在哪；maturity=怎么移动。</text>
+
+  <!-- self-dev decomposition strip -->
+  <rect x="48" y="1846" width="1084" height="74" rx="12" fill="#E6F5EF" stroke="#B4E0CE" stroke-width="1"/>
+  <text x="68" y="1870" font-size="14" font-weight="700" fill="#0F6E56">自研力度 · 三子项分别接入（拆而不合成）</text>
+  <text x="68" y="1891" font-size="12" fill="#333">自研电池 batt_dev(0–10) → 压低成本传导 γ（成本侧，经设定 γ 真值注入，不在回归后乘系数）；自研智驾 adas_dev + 自研芯片 chip_dev(0–10) → 抬升 aᵢ 智能分量（需求侧）。</text>
+  <text x="68" y="1911" font-size="11.5" fill="#0F6E56" font-style="italic">连续&gt;0/1（区分深浅）· 加权&gt;均值（电池杠杆最大）· 综合评分仅作展示/RAG 标签，不进计算。model_dim 存三子项。</text>
+
+  <!-- upstream + government + coverage strip -->
+  <rect x="48" y="1930" width="536" height="118" rx="12" fill="#FDECE4" stroke="#F3CDA9" stroke-width="1"/>
+  <text x="68" y="1954" font-size="14" font-weight="700" fill="#9A4B12">上游商品链 + 政府维度（补齐输入端）</text>
+  <text x="68" y="1976" font-size="12" fill="#333">表三多商品冲击：锂/镍钴/稀土/钢铝/半导体 + 上游政策指数</text>
+  <text x="68" y="1996" font-size="12" fill="#333">表五 component_type：电池包/电驱/域控/芯片/原料 → 各接不同上游指数</text>
+  <text x="68" y="2016" font-size="12" fill="#333">表四政府：注资/财政实力/税收优惠 → 刻画地方保护(合肥扶蔚来)</text>
+  <text x="68" y="2036" font-size="11.5" fill="#9A4B12" font-style="italic">碳价保持外生(供需联动留 v0.3)；换电合作触发博弈层竞合(削弱 θ)</text>
+
+  <rect x="604" y="1930" width="528" height="118" rx="12" fill="#EAF1FB" stroke="#B9D2F0" stroke-width="1"/>
+  <text x="624" y="1954" font-size="14" font-weight="700" fill="#0C447C">输入端三分工（对照 knowledge checklist）</text>
+  <text x="624" y="1976" font-size="12" fill="#333">SQL：结构化数值(政策/上游成本/基建/经营/财务)</text>
+  <text x="624" y="1996" font-size="12" fill="#333">JSON：规则与系数(θ 竞争强度、β/交叉弹性、aᵢ 话语权分量)</text>
+  <text x="624" y="2016" font-size="12" fill="#333">RAG：定性叙事(体系话语权:谁定义技术路线/补能/心智)</text>
+  <text x="624" y="2036" font-size="11.5" fill="#0C447C" font-style="italic">话语权非账面 → 不塞 SQL；量化部分(自研)在表一，其余分属 JSON/RAG</text>
+
+  <rect x="48" y="2062" width="1084" height="72" rx="12" fill="#EAF1FB" stroke="#B9D2F0" stroke-width="1"/>
+  <text x="68" y="2086" font-size="14" font-weight="700" fill="#0C447C">市场有限性 · 三层天花板 + 销售费用闭环</text>
+  <text x="68" y="2107" font-size="12" fill="#333">① 份额≤100%（logit 强制，免费） · ② 全国蛋糕 M 用逻辑斯蒂饱和（防无限降价拿无限量） · ③ 本地 local_market_size = 可服务天花板 TAM</text>
+  <text x="68" y="2126" font-size="11.5" fill="#0C447C" font-style="italic">selling_expense（销售费用，B画像）→ 心智体系存量 → aᵢ↑：与降价并列的竞争手段，价格竞争→生态竞争的财务落地。</text>
+
+  <text x="48" y="2160" font-size="11.5" fill="#9A9892">诚实声明：SQL 原子数据由 DGP 合成，行为系数为「设定并经回归恢复验证」，非真实市场实证发现；九公司仅作锚点参照。 · 落库门槛：仅人民币+中国口径入库。</text>
+</svg>
