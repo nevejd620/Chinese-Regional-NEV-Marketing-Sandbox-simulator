@@ -3,7 +3,7 @@
 > 博弈驱动的动态定价决策系统 —— 计量经济学微观行为模型 × 公司金融杜邦/ROIC-WACC，缝合成一个参数化数字孪生仿真系统。
 > 场景：中国新能源汽车（NEV）产业的区域选址 × 象限战略博弈。
 
-**🔗 在线演示**：`https://<your-app>.streamlit.app`　（Phase 1 骨架已上线；拖滑块看 ROE 射线 + 参数恢复表）
+**🔗 在线演示**：`https://chinese-regional-nev-marketing-sandbox-simulator-3lpxhv6sebdda.streamlit.app/`　（Phase 1 骨架已上线；拖滑块看 ROE 射线 + 参数恢复表）
 
 ---
 
