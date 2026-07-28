@@ -40,8 +40,11 @@ def recover_beta(db: Path = DB_PATH) -> pd.DataFrame:
     """One own-price elasticity per quadrant, with model_id fixed effects
     (FE absorb cross-model level differences so β is identified off within-model
     price variation, not the Q1-vs-Q4 price gap). Returns tidy table."""
-    df = _read("SELECT quadrant, model_id, unit_price, quantity "
-               "FROM sales_transactions WHERE unit_price>0 AND quantity>0", db)
+    df = _read("SELECT m.quadrant AS quadrant, s.model_id AS model_id, "
+               "       s.unit_price AS unit_price, s.quantity AS quantity "
+               "FROM sales_transactions s "
+               "JOIN model_dim m ON s.model_id = m.model_id "
+               "WHERE s.unit_price>0 AND s.quantity>0", db)
     df["lnP"] = np.log(df.unit_price)
     df["lnQ"] = np.log(df.quantity)
     out = []
@@ -64,8 +67,11 @@ def recover_gamma(db: Path = DB_PATH) -> pd.DataFrame:
     so γ = b1/(b0+b1)  (base = b0+b1, unknown, cancels). CI via delta method
     on the ratio using the 2×2 parameter covariance — no preset base needed,
     no attenuation bias."""
-    df = _read("SELECT region, bom_cost_per_unit, lithium_price_index "
-               "FROM supply_chain_costs WHERE bom_cost_per_unit>0", db)
+    df = _read("SELECT c.region AS region, c.bom_cost_per_unit AS bom_cost_per_unit, "
+               "       m.lithium_price_index AS lithium_price_index "
+               "FROM supply_chain_costs c "
+               "JOIN macro_shocks_log m ON c.cost_date = m.shock_date "
+               "WHERE c.bom_cost_per_unit>0", db)
     out = []
     for r, g in df.groupby("region"):
         g = g.assign(Lr=g.lithium_price_index / 100)
@@ -111,7 +117,8 @@ def _baseline_pack(db: Path = DB_PATH) -> dict:
 
     pack = {}
     for r, row in latest.iterrows():
-        rev, ni, eq = float(row.automotive_sales_revenue), float(row.net_income), float(row.equity)
+        rev, ni = float(row.automotive_sales_revenue), float(row.net_income)
+        eq = float(row.shareholders_equity)
         a, uc = float(asp.get(r, np.nan)), float(unit_cost.get(r, np.nan))
         base_qty = rev / a if a else np.nan
         # back out fixed cost so ROE_base == net_income/equity exactly (engine ties to DB)
