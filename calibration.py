@@ -66,12 +66,30 @@ def recover_gamma(db: Path = DB_PATH) -> pd.DataFrame:
     Regress bom on Lr=L/100  → slope b1 = base·γ, intercept b0 = base·(1−γ),
     so γ = b1/(b0+b1)  (base = b0+b1, unknown, cancels). CI via delta method
     on the ratio using the 2×2 parameter covariance — no preset base needed,
-    no attenuation bias."""
-    df = _read("SELECT c.region AS region, c.bom_cost_per_unit AS bom_cost_per_unit, "
-               "       m.lithium_price_index AS lithium_price_index "
-               "FROM supply_chain_costs c "
-               "JOIN macro_shocks_log m ON c.cost_date = m.shock_date "
-               "WHERE c.bom_cost_per_unit>0 AND c.component_type='battery'", db)
+    no attenuation bias.
+
+    Only the battery component responds to lithium, so mixing all component_types
+    dilutes the signal. Instead of hard-coding a name like 'battery' (which may be
+    '电池'/'Battery'/'battery_pack' in your DB), we AUTO-SELECT the component_type
+    whose BOM cost is most correlated with the lithium index — that is the battery
+    line whatever it is called."""
+    raw = _read("SELECT c.region AS region, c.component_type AS component_type, "
+                "       c.bom_cost_per_unit AS bom_cost_per_unit, "
+                "       m.lithium_price_index AS lithium_price_index "
+                "FROM supply_chain_costs c "
+                "JOIN macro_shocks_log m ON c.cost_date = m.shock_date "
+                "WHERE c.bom_cost_per_unit>0", db)
+
+    # pick the component_type most correlated with lithium (the battery line)
+    if "component_type" in raw and raw["component_type"].nunique() > 1:
+        corr = (raw.groupby("component_type")
+                   .apply(lambda g: g.bom_cost_per_unit.corr(g.lithium_price_index))
+                   .abs().sort_values(ascending=False))
+        batt = corr.index[0]
+        df = raw[raw.component_type == batt].copy()
+    else:
+        df = raw
+
     out = []
     for r, g in df.groupby("region"):
         g = g.assign(Lr=g.lithium_price_index / 100)
@@ -79,7 +97,6 @@ def recover_gamma(db: Path = DB_PATH) -> pd.DataFrame:
         b0, b1 = res.params["Intercept"], res.params["Lr"]
         base = b0 + b1
         gamma = b1 / base
-        # delta method:  g = b1/(b0+b1);  J = [∂g/∂b0, ∂g/∂b1]
         J = np.array([-b1 / base**2, b0 / base**2])
         cov = res.cov_params().loc[["Intercept", "Lr"], ["Intercept", "Lr"]].values
         se = float(np.sqrt(J @ cov @ J))
