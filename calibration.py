@@ -71,7 +71,7 @@ def recover_gamma(db: Path = DB_PATH) -> pd.DataFrame:
                "       m.lithium_price_index AS lithium_price_index "
                "FROM supply_chain_costs c "
                "JOIN macro_shocks_log m ON c.cost_date = m.shock_date "
-               "WHERE c.bom_cost_per_unit>0", db)
+               "WHERE c.bom_cost_per_unit>0 AND c.component_type='battery'", db)
     out = []
     for r, g in df.groupby("region"):
         g = g.assign(Lr=g.lithium_price_index / 100)
@@ -95,7 +95,7 @@ def recovery_table(db: Path = DB_PATH, truth_path: Path = TRUTH_PATH) -> pd.Data
     truth = json.load(open(truth_path, encoding="utf-8"))
     tab = pd.concat([recover_beta(db), recover_gamma(db)], ignore_index=True)
     tmap = {"beta_demand": truth.get("beta_demand", {}),
-            "gamma_cost":  truth.get("gamma_cost", {})}
+            "gamma_cost":  truth.get("gamma_effective", truth.get("gamma_cost", {}))}
     tab["truth"] = tab.apply(lambda r: tmap[r.coefficient].get(r.key, np.nan), axis=1)
     tab["covered"] = (tab.truth >= tab.ci_low) & (tab.truth <= tab.ci_high)
     tab["abs_err"] = (tab.estimate - tab.truth).abs()
