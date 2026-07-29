@@ -77,3 +77,9 @@ COMPONENT_TYPES = ["battery_pack", "e_drive", "domain_controller", "chip", "raw_
 TAX_RATE = 0.20
 ERP = 0.055                        # 股权风险溢价 (JSON)
 PB_MULTIPLE = {"Q1": 3.0, "Q2": 2.2, "Q3": 1.5, "Q4": 1.2}   # 象限估值倍数
+
+# ── Phase 2 · WACC 补齐 (CAPM 两条腿) ─────────────────────
+# 股权 β：CAPM 的 Re = rf + β·ERP。按九公司象限锚点设定（成长/波动越高→β 越高）。
+EQUITY_BETA   = {"Q1": 1.6, "Q2": 1.2, "Q3": 1.0, "Q4": 1.1}
+# 债务成本信用利差：Rd = rf + spread。先用统一 +2.0%（沿用默认，需要再按象限分）。
+CREDIT_SPREAD = 0.020

@@ -15,12 +15,20 @@ import streamlit as st
 from ensure_db import ensure_db                              # noqa: E402
 from calibration import recovery_table, cached_config        # noqa: E402
 from simulate import simulate_roe                            # noqa: E402
+import financials                                            # noqa: E402  Phase 2 价值裁决层
 
 st.set_page_config(page_title="NEV 沙盘 · Phase 1", layout="wide")
 
 ensure_db()                                                  # regenerate db on Cloud if missing
 config = cached_config()                                     # cached build/read of config
 cities = list(config["baseline"].keys())
+
+
+@st.cache_data(show_spinner=False)
+def cached_value_table():
+    """Phase 2：读 financial_snapshots → 杜邦/ROIC/WACC/spread 价值宽表（静态基线截面）。
+    与 config 同源于当次 nev.db，天然同批；不写库、不挂 LLM。"""
+    return financials.value_table_from_snapshots(financials.load_snapshots())
 
 st.title("NEV 区域定价沙盘 · Phase 1")
 st.caption("选址禀赋 → 象限战略 → 定价冲击 → ROE 价值裁决 · 系数由 nev.db 回归恢复,非手填")
@@ -71,6 +79,74 @@ with right:
     c2.metric("ROE @ t180", f"{res['roe_p50'][-1]:+.1%}",
               f"{res['roe_delta_end']:+.1%} vs 基准")
     c3.metric("β / γ 采用", f"{res['beta_used']:.2f} / {res['gamma_used']:.2f}")
+
+# ═══════════════════════════════════════════════════════════════
+# Phase 2 · 财务解剖与价值裁决 (杜邦 → ROIC−WACC · 静态基线截面)
+#   不挂 LLM；不随上方滑块（价值口径独立于短期冲击演示，见 Phase 2 决策台账）。
+# ═══════════════════════════════════════════════════════════════
+st.divider()
+st.subheader("财务解剖与价值裁决　(杜邦 → ROIC − WACC · 静态基线截面)")
+st.caption("回答「这个 ROE 到底创没创造价值」。数字取自 financial_snapshots 基线截面，"
+           "为 t0 价值裁决——独立于上方滑块（滑块动的是 ROE 射线，价值坐标是固定背景）。")
+
+vt = cached_value_table()
+sel = vt[(vt.region == city) & (vt.quadrant == q)]
+
+fcol, rcol = st.columns([3, 2], gap="large")
+
+with fcol:
+    # ── ROIC−WACC 价值创造前沿：全 cell 静态铺开，当前城市高亮 ──
+    QUAD_COLOR = {"Q1": "#185FA5", "Q2": "#3E8E7E", "Q3": "#C77D3A", "Q4": "#8A6FA8"}
+    ffig = go.Figure()
+    for qd, g in vt.groupby("quadrant"):
+        ffig.add_trace(go.Scatter(
+            x=g.revenue_growth, y=g.spread, mode="markers",
+            marker=dict(size=13, color=QUAD_COLOR.get(qd, "#888780")),
+            name=qd, text=[cn_of(r) for r in g.region],
+            hovertemplate="%{text}·" + qd +
+                          "<br>营收增速 %{x:.1%}<br>spread %{y:+.1%}<extra></extra>"))
+    if not sel.empty:
+        ffig.add_trace(go.Scatter(
+            x=sel.revenue_growth, y=sel.spread, mode="markers",
+            marker=dict(size=22, color="rgba(0,0,0,0)",
+                        line=dict(color="#C0392B", width=3)),
+            name="当前选中", hoverinfo="skip"))
+    ffig.add_hline(y=0, line=dict(color="#C0392B", dash="dash"),
+                   annotation_text="价值创造分界 (ROIC=WACC)",
+                   annotation_position="bottom right",
+                   annotation_font=dict(color="#C0392B", size=12))
+    ffig.update_layout(height=420, margin=dict(l=10, r=40, t=30, b=10),
+                       xaxis_title="营收增速 (CAGR)",
+                       yaxis_title="价值创造 spread = ROIC − WACC",
+                       xaxis_tickformat=".0%", yaxis_tickformat=".0%",
+                       legend=dict(orientation="h", y=1.12))
+    st.plotly_chart(ffig, use_container_width=True)
+    st.caption("横轴＝规模扩张速度，纵轴＝每单位资本创造/毁灭的价值。"
+               "零轴之上创造价值、之下毁灭价值；**右下＝高增长却毁价值（赢销量≠赢价值）**。"
+               "红圈＝当前选中城市。")
+
+with rcol:
+    if sel.empty:
+        st.info(f"financial_snapshots 暂无 {cn_of(city)} × {q} 的截面，跳过该 cell 裁决。")
+    else:
+        s = sel.iloc[0]
+        st.markdown("**杜邦三因子**　ROE = 净利率 × 周转率 × 权益乘数")
+        d1, d2, d3 = st.columns(3)
+        d1.metric("净利率", f"{s.net_margin:+.1%}")
+        d2.metric("资产周转率", f"{s.asset_turnover:.2f}")
+        d3.metric("权益乘数", f"{s.equity_multiplier:.2f}")
+        st.markdown("**价值裁决**　spread = ROIC − WACC")
+        v1, v2, v3 = st.columns(3)
+        v1.metric("ROIC", f"{s.roic:+.1%}" if pd.notna(s.roic) else "—")
+        v2.metric("WACC", f"{s.wacc:.1%}")
+        v3.metric("ROE", f"{s.roe:+.1%}")
+        if pd.notna(s.spread):
+            box = st.success if s.spread > 0 else st.error
+            box(f"{cn_of(city)} × {q}："
+                f"{'创造价值 ✓' if s.spread > 0 else '毁灭价值 ✗'}"
+                f"（spread {s.spread:+.1%}）")
+        else:
+            st.warning("该 cell 投入资本 ≤ 0，ROIC 无经济意义，已跳过裁决。")
 
 st.divider()
 st.subheader("参数恢复表　(回归估计 vs 埋入真值 · 项目立身之本)")
