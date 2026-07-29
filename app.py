@@ -25,10 +25,15 @@ cities = list(config["baseline"].keys())
 st.title("NEV 区域定价沙盘 · Phase 1")
 st.caption("选址禀赋 → 象限战略 → 定价冲击 → ROE 价值裁决 · 系数由 nev.db 回归恢复,非手填")
 
+# 显示层：英文 region 键 → 中文名。底层取数一律用英文键,只在 UI 翻译。
+CITY_CN = {"Shanghai": "上海", "Shenzhen": "深圳", "Hefei": "合肥",
+           "Changzhou": "常州", "Xian": "西安", "Liuzhou": "柳州"}
+cn_of = lambda r: CITY_CN.get(r, r)          # 没映射到的回退英文,不会崩
+
 left, right = st.columns([1, 2], gap="large")
 
 with left:
-    city = st.selectbox("城市 / 选址", cities, index=0)
+    city = st.selectbox("城市 / 选址", cities, index=0, format_func=cn_of)
     q = config["baseline"][city]["quadrant"]
     st.markdown(f"**象限**：`{q}`　**基准 ROE**："
                 f"`{config['baseline'][city]['roe_base']:+.1%}`")
@@ -54,8 +59,9 @@ with right:
     fig.add_trace(go.Scatter(x=res["days"], y=res["roe_p50"], mode="lines",
                              line=dict(color="#185FA5", width=2.5), name="ROE 中位射线"))
     fig.add_hline(y=res["roe_base"], line=dict(color="#888780", dash="dash"),
-                  annotation_text="基准 ROE", annotation_position="right")
-    fig.update_layout(height=380, margin=dict(l=10, r=10, t=30, b=10),
+                  annotation_text="基准 ROE", annotation_position="top left",
+                  annotation_font=dict(color="#888780", size=12))
+    fig.update_layout(height=380, margin=dict(l=10, r=70, t=30, b=10),
                       xaxis_title="推演天数 (0–180)", yaxis_title="ROE(年化运行率)",
                       yaxis_tickformat=".0%", legend=dict(orientation="h", y=1.12))
     st.plotly_chart(fig, use_container_width=True)
