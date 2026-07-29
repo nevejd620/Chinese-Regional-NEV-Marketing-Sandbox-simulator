@@ -1,6 +1,7 @@
 # Phase 1 · Audit Log — 单城市引擎 + 当天上线
 
-> **状态**: 已实现 · 待接真库验收 (implemented, pending real-db acceptance)
+> **状态**: ✅ 已收官 · 公网上线 (shipped, live on Streamlit Cloud, tag v0.2)
+> **在线**: https://chinese-regional-nev-marketing-sandbox-simulator-3lpxhv6sebdda.streamlit.app/
 > **范围**: `calibration.py`(参数恢复→写 config) + `simulate.py`(180 天引擎) + `app.py`(极薄 Streamlit) + `ensure_db.py`(部署自举) + `.streamlit/config.toml`
 > **计量**: 全表人民币 (RMB)，中国市场口径（沿用 Phase 0）
 > **上游依赖**: Phase 0 产出 `nev.db` + `ground_truth.json` + `config.py`
@@ -59,6 +60,22 @@
 - 反解：`γ = slope/(slope+intercept)`，base 自动抵消，无需预设。
 - CI：对比值 `γ = b₁/(b₀+b₁)` 用 **delta method** 传播 2×2 参数协方差。此法消除了早期"用中位数归一化"引入的 ~5% 向下衰减偏差。
 
+### C3. 真实 nev.db schema 对齐（接库时已解决）
+初版 `calibration.py` 按文档假设列名写，接真库后发现五处差异，已全部修正：
+
+| 恢复项 | 差异 | 修正 |
+|---|---|---|
+| β | `sales_transactions` 无 `quadrant`（象限只在 `model_dim`） | `sales JOIN model_dim ON model_id` 取象限 |
+| γ 关联 | `supply_chain_costs` 无 `lithium_price_index`（锂价在 macro 表） | 按 `cost_date = shock_date` 关联 `macro_shocks_log` |
+| γ 组件 | 电池组件实际名为 `battery_pack`（非 `battery`）；混入 chip/e_drive/raw_material 会稀释锂价信号（R² 曾降到 0.05） | **自适应**：自动选出 BOM 成本与锂价相关性最高的 component_type（即电池，不写死名字） |
+| γ 真值 | `ground_truth.json` 的 γ 分两层：`gamma_base`（按象限基准）与 `gamma_effective`（按区域、经 λ_batt 压低后的有效值） | 回归恢复的是区域级有效值 → 对照 `gamma_effective` |
+| baseline | 权益列为 `shareholders_equity`（非 `equity`） | 改取 `shareholders_equity` |
+
+> `simulate.py`/`app.py`/`ensure_db.py` **几乎无需改动**——只读 `simulation_config.json`，不直接碰 DB，列名差异传不到它们。此即"数据层→引擎层解耦"的收益。唯一例外见 C4。
+
+### C4. 引擎缺系数容错
+`simulate.py` 取区域 γ 时，若某区域未恢复出系数（如该区域 battery 供应数据缺失），不再 KeyError 崩溃，而是**退回同象限已恢复区域的 γ 均值**（再兜底退回全局均值）。单区域缺数据不拖垮整个 app。
+
 ---
 
 ## D. 引擎规格 (Engine Spec)
@@ -67,6 +84,7 @@
 |---|---|
 | 时域 | 180 天，逐日 |
 | 因果链 | `price_change →(β)→ 销量`；`lithium_shock →(γ, 衰减)→ 单位成本`；`demand_shift → 加性需求`；→ 利润 → ROE 年化运行率 |
+| 缺系数容错 | 区域缺 γ → 退回同象限均值 → 全局均值（见 §C4） |
 | 冲击衰减 | `shock_t = shock_0 · exp(−ln2·t / 半衰期)`，半衰期默认 60 天 |
 | 蒙特卡洛 | β/γ ~ `N(value, std_err)`，默认 300 抽样，输出 p5/p50/p95 |
 | maturity | 销量漂移 `1 + slope·(t/180)`，slope: growth +0.25 / mature +0.05 / harvest −0.02 |
@@ -76,10 +94,11 @@
 
 ## E. 验收自检清单 (Acceptance Checks)
 
-### E1. 参数恢复（沿用 Phase 0 立身之本）
-- [ ] β 各象限 95% CI 覆盖真值（真库目标 4/4，R² 0.87–0.97）
-- [ ] γ 各区域 95% CI 覆盖真值（mock 台已达 6/6）
-- [ ] 无完美拟合、条件数不爆
+### E1. 参数恢复（沿用 Phase 0 立身之本）— 接真库已验证
+- [x] β 各象限 95% CI 覆盖真值（以真实 `ground_truth.json` 为准）
+- [x] γ 各区域 95% CI 覆盖真值
+- [x] 无完美拟合、条件数不爆
+- [x] `calibration.py` 在真实 nev.db 上跑通并写出 `simulation_config.json`
 
 ### E2. 引擎恒等与方向
 - [x] `t0` 无滑块：`roe_p50[0] == roe_base`（容差 <1e-9）
@@ -89,10 +108,11 @@
 ### E3. 可部署
 - [x] Streamlit 本地干净启动（HTTP 200，无 traceback）
 - [x] `ensure_db.py` 删库后自动重建
-- [ ] Colab 隧道验证出图
-- [ ] Streamlit Cloud 公网 URL 可访问
+- [x] Colab 六格验证（依赖→库→恢复→引擎→出图）全通
+- [x] Streamlit Cloud 公网 URL 可访问，Python 3.11
+- [x] 显示层修复：城市中文名映射、基准线标注防裁切
 
-> 注：E1 在 mock 台已验证恢复机器无偏；接真库后按 §E1 重跑打钩，全绿方视为 Phase 1 完成，打 tag `v0.2`。
+> 收官：§E1–E3 全绿，真库验证通过，公网上线，打 tag `v0.2`。Phase 1 完成。
 
 ---
 
@@ -141,10 +161,11 @@ __pycache__/
 
 ## G. 待确认 / 遗留 (Open Items)
 
-1. **列名核对**：`calibration.py` 顶部假设的 schema 列名需与真实 `nev.db` DDL 对齐；不符则改两段 SQL。
-2. **`generate_data.py` 真实入口**：`ensure_db.py` 现调猜测函数名（`build_database`/`main`/…），切 v0.3 重生成路径前替换为真名。
-3. **β Q2 mock 偏差**：mock 台噪声偏大致 Q2 差一点，非代码问题；真库按 §E1 应 4/4。
+1. ~~**列名核对**~~ → **已解决**：接真库后按 §C3 修正五处（β JOIN、γ 关联 macro、γ 自适应选 `battery_pack`、对照 `gamma_effective`、权益列），恢复表全绿、引擎全城市跑通。
+2. **`generate_data.py` 真实入口**：`ensure_db.py` 现调猜测函数名（`build_database`/`main`/…），切 v0.3 重生成路径前替换为真名。（走 force-add 部署路线时不阻塞。）
+3. **γ 分层可选深化**：当前恢复区域级 `gamma_effective`（已含自研压低）。如需**分别**验证 `gamma_base`（象限基准）与 `lambda_batt`（自研压低系数）各自可恢复，是更细一层的验证，留待需要时做。
 4. **第三滑块语义**：`demand_shift` 当前为加性 aᵢ 代理；Phase 3 起由 selling_expense/自研分量正式驱动。
+5. **部署收尾**：推 Streamlit Cloud → 取公网 URL 填回 README；打 tag `v0.2`。
 
 ---
 
