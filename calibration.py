@@ -83,7 +83,8 @@ def recover_gamma(db: Path = DB_PATH) -> pd.DataFrame:
     # pick the component_type most correlated with lithium (the battery line)
     if "component_type" in raw and raw["component_type"].nunique() > 1:
         corr = (raw.groupby("component_type")
-                   .apply(lambda g: g.bom_cost_per_unit.corr(g.lithium_price_index))
+                   .apply(lambda g: g.bom_cost_per_unit.corr(g.lithium_price_index),
+                          include_groups=False)
                    .abs().sort_values(ascending=False))
         batt = corr.index[0]
         df = raw[raw.component_type == batt].copy()
@@ -128,7 +129,8 @@ def _baseline_pack(db: Path = DB_PATH) -> dict:
     # per-region unit economics from sales + supply (latest year)
     sales = _read("SELECT region, unit_price, quantity FROM sales_transactions", db)
     asp = sales.groupby("region").apply(
-        lambda g: np.average(g.unit_price, weights=g.quantity)).to_dict()
+        lambda g: np.average(g.unit_price, weights=g.quantity),
+        include_groups=False).to_dict()
     supply = _read("SELECT region, bom_cost_per_unit FROM supply_chain_costs", db)
     unit_cost = supply.groupby("region").bom_cost_per_unit.median().to_dict()
 
