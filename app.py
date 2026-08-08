@@ -12,10 +12,12 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+import numpy as np                                           # noqa: E402
 from ensure_db import ensure_db                              # noqa: E402
 from calibration import recovery_table, cached_config        # noqa: E402
 from simulate import simulate_roe                            # noqa: E402
 import financials                                            # noqa: E402  Phase 2 价值裁决层
+import copy_cn as T                                          # noqa: E402  人话文案层（纯显示）
 
 st.set_page_config(page_title="NEV 沙盘 · Phase 1", layout="wide")
 
@@ -24,14 +26,8 @@ config = cached_config()                                     # cached build/read
 cities = list(config["baseline"].keys())
 
 
-@st.cache_data(show_spinner=False)
-def cached_value_table():
-    """Phase 2：读 financial_snapshots → 杜邦/ROIC/WACC/spread 价值宽表（静态基线截面）。
-    与 config 同源于当次 nev.db，天然同批；不写库、不挂 LLM。"""
-    return financials.value_table_from_snapshots(financials.load_snapshots())
-
-st.title("NEV 区域定价沙盘 · Phase 1")
-st.caption("选址禀赋 → 象限战略 → 定价冲击 → ROE 价值裁决 · 系数由 nev.db 回归恢复,非手填")
+st.title("新能源汽车区域选址及定价沙盘")
+st.caption("选址禀赋 → 象限战略 → 定价冲击 → ROE 与价值创造裁决 · 系数由 nev.db 回归恢复,非手填")
 
 # 显示层：英文 region 键 → 中文名。底层取数一律用英文键,只在 UI 翻译。
 CITY_CN = {"Shanghai": "上海", "Shenzhen": "深圳", "Hefei": "合肥",
@@ -57,96 +53,143 @@ sliders = dict(price_change=price_change, lithium_shock=lithium_shock,
                demand_shift=demand_shift)
 res = simulate_roe(city, sliders, config)
 
-with right:
+# ── Phase 2 · 价值 spread 逐日线（动态，路 B）：喂 simulate 的 EBIT 线 → financials ──
+has_ebit = res.get("ebit_p50") is not None
+if has_ebit:
+    def _spread_of(ebit_line):
+        sl = financials.spread_line(
+            np.array(ebit_line), quadrant=res["quadrant"],
+            shareholders_equity=res["shareholders_equity"],
+            interest_bearing_debt=res["interest_bearing_debt"],
+            cash_and_equivalents=res["cash_and_equivalents"],
+            tax_rate=res["tax_rate"])
+        return [None if (x != x) else float(x) for x in sl["spread"]]   # NaN→None
+    spr_p05 = _spread_of(res["ebit_p05"])
+    spr_p50 = _spread_of(res["ebit_p50"])
+    spr_p95 = _spread_of(res["ebit_p95"])
+
+# ── 「对比上次拨动」：按城市存上一次中位线，用于阴影 ──
+skey = f"prev::{city}"
+prev = st.session_state.get(skey)
+
+
+def _panel(days, p05, p50, p95, prev_p50, color, rgba, y_title,
+           zero_ref, zero_label, base_ref, base_label,
+           this_label, prev_label):
+    """一个分区面板：p5–p95 带 + 中位线 +（有上次则）对比阴影 + 参考线。文案全走 copy_cn。"""
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=res["days"], y=res["roe_p95"], mode="lines",
-                             line=dict(width=0), showlegend=False, hoverinfo="skip"))
-    fig.add_trace(go.Scatter(x=res["days"], y=res["roe_p05"], mode="lines",
-                             line=dict(width=0), fill="tonexty",
-                             fillcolor="rgba(24,95,165,0.15)", name="p5–p95 置信带"))
-    fig.add_trace(go.Scatter(x=res["days"], y=res["roe_p50"], mode="lines",
-                             line=dict(color="#185FA5", width=2.5), name="ROE 中位射线"))
-    fig.add_hline(y=res["roe_base"], line=dict(color="#888780", dash="dash"),
-                  annotation_text="基准 ROE", annotation_position="top left",
-                  annotation_font=dict(color="#888780", size=12))
-    fig.update_layout(height=380, margin=dict(l=10, r=70, t=30, b=10),
-                      xaxis_title="推演天数 (0–180)", yaxis_title="ROE(年化运行率)",
-                      yaxis_tickformat=".0%", legend=dict(orientation="h", y=1.12))
-    st.plotly_chart(fig, use_container_width=True)
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("ROE @ t0",   f"{res['roe_p50'][0]:+.1%}")
-    c2.metric("ROE @ t180", f"{res['roe_p50'][-1]:+.1%}",
-              f"{res['roe_delta_end']:+.1%} vs 基准")
-    c3.metric("β / γ 采用", f"{res['beta_used']:.2f} / {res['gamma_used']:.2f}")
-
-# ═══════════════════════════════════════════════════════════════
-# Phase 2 · 财务解剖与价值裁决 (杜邦 → ROIC−WACC · 静态基线截面)
-#   不挂 LLM；不随上方滑块（价值口径独立于短期冲击演示，见 Phase 2 决策台账）。
-# ═══════════════════════════════════════════════════════════════
-st.divider()
-st.subheader("财务解剖与价值裁决　(杜邦 → ROIC − WACC · 静态基线截面)")
-st.caption("回答「这个 ROE 到底创没创造价值」。数字取自 financial_snapshots 基线截面，"
-           "为 t0 价值裁决——独立于上方滑块（滑块动的是 ROE 射线，价值坐标是固定背景）。")
-
-vt = cached_value_table()
-sel = vt[(vt.region == city) & (vt.quadrant == q)]
-
-fcol, rcol = st.columns([3, 2], gap="large")
-
-with fcol:
-    # ── ROIC−WACC 价值创造前沿：全 cell 静态铺开，当前城市高亮 ──
-    QUAD_COLOR = {"Q1": "#185FA5", "Q2": "#3E8E7E", "Q3": "#C77D3A", "Q4": "#8A6FA8"}
-    ffig = go.Figure()
-    for qd, g in vt.groupby("quadrant"):
-        ffig.add_trace(go.Scatter(
-            x=g.revenue_growth, y=g.spread, mode="markers",
-            marker=dict(size=13, color=QUAD_COLOR.get(qd, "#888780")),
-            name=qd, text=[cn_of(r) for r in g.region],
-            hovertemplate="%{text}·" + qd +
-                          "<br>营收增速 %{x:.1%}<br>spread %{y:+.1%}<extra></extra>"))
-    if not sel.empty:
-        ffig.add_trace(go.Scatter(
-            x=sel.revenue_growth, y=sel.spread, mode="markers",
-            marker=dict(size=22, color="rgba(0,0,0,0)",
-                        line=dict(color="#C0392B", width=3)),
-            name="当前选中", hoverinfo="skip"))
-    ffig.add_hline(y=0, line=dict(color="#C0392B", dash="dash"),
-                   annotation_text="价值创造分界 (ROIC=WACC)",
-                   annotation_position="bottom right",
-                   annotation_font=dict(color="#C0392B", size=12))
-    ffig.update_layout(height=420, margin=dict(l=10, r=40, t=30, b=10),
-                       xaxis_title="营收增速 (CAGR)",
-                       yaxis_title="价值创造 spread = ROIC − WACC",
-                       xaxis_tickformat=".0%", yaxis_tickformat=".0%",
-                       legend=dict(orientation="h", y=1.12))
-    st.plotly_chart(ffig, use_container_width=True)
-    st.caption("横轴＝规模扩张速度，纵轴＝每单位资本创造/毁灭的价值。"
-               "零轴之上创造价值、之下毁灭价值；**右下＝高增长却毁价值（赢销量≠赢价值）**。"
-               "红圈＝当前选中城市。")
-
-with rcol:
-    if sel.empty:
-        st.info(f"financial_snapshots 暂无 {cn_of(city)} × {q} 的截面，跳过该 cell 裁决。")
+    fig.add_trace(go.Scatter(x=days, y=p95, mode="lines", line=dict(width=0),
+                             showlegend=False, hoverinfo="skip"))
+    fig.add_trace(go.Scatter(x=days, y=p05, mode="lines", line=dict(width=0),
+                             fill="tonexty", fillcolor=rgba.replace("A%", "0.13"),
+                             name="p5–p95 置信带"))
+    if prev_p50 is not None:
+        fig.add_trace(go.Scatter(x=days, y=prev_p50, mode="lines",
+                                 line=dict(color="#B0AEA8", width=1.4, dash="dot"),
+                                 name=prev_label))
+        fig.add_trace(go.Scatter(x=days, y=p50, mode="lines", fill="tonexty",
+                                 fillcolor=rgba.replace("A%", "0.22"),
+                                 line=dict(color=color, width=2.6), name=this_label))
     else:
-        s = sel.iloc[0]
-        st.markdown("**杜邦三因子**　ROE = 净利率 × 周转率 × 权益乘数")
-        d1, d2, d3 = st.columns(3)
-        d1.metric("净利率", f"{s.net_margin:+.1%}")
-        d2.metric("资产周转率", f"{s.asset_turnover:.2f}")
-        d3.metric("权益乘数", f"{s.equity_multiplier:.2f}")
-        st.markdown("**价值裁决**　spread = ROIC − WACC")
-        v1, v2, v3 = st.columns(3)
-        v1.metric("ROIC", f"{s.roic:+.1%}" if pd.notna(s.roic) else "—")
-        v2.metric("WACC", f"{s.wacc:.1%}")
-        v3.metric("ROE", f"{s.roe:+.1%}")
-        if pd.notna(s.spread):
-            box = st.success if s.spread > 0 else st.error
-            box(f"{cn_of(city)} × {q}："
-                f"{'创造价值 ✓' if s.spread > 0 else '毁灭价值 ✗'}"
-                f"（spread {s.spread:+.1%}）")
-        else:
-            st.warning("该 cell 投入资本 ≤ 0，ROIC 无经济意义，已跳过裁决。")
+        fig.add_trace(go.Scatter(x=days, y=p50, mode="lines",
+                                 line=dict(color=color, width=2.6), name=this_label))
+    if zero_ref:
+        fig.add_hline(y=0, line=dict(color="#C0392B", dash="dash"),
+                      annotation_text=zero_label, annotation_position="top left",
+                      annotation_font=dict(color="#C0392B", size=11))
+    if base_ref is not None:
+        fig.add_hline(y=base_ref, line=dict(color="#888780", dash="dash"),
+                      annotation_text=base_label, annotation_position="bottom left",
+                      annotation_font=dict(color="#888780", size=11))
+    fig.update_layout(height=250, margin=dict(l=10, r=80, t=20, b=8),
+                      yaxis_title=y_title, yaxis_tickformat=".0%",
+                      legend=dict(orientation="h", y=1.18), showlegend=True)
+    return fig
+
+# ── 段标题 + 结论 ──
+if T.SECTION_TITLE:
+    st.subheader(T.SECTION_TITLE)
+if T.SECTION_CAPTION:
+    st.caption(T.SECTION_CAPTION)
+if T.HEADLINE_MAIN:
+    st.markdown(f"#### {T.HEADLINE_MAIN}")
+if T.HEADLINE_SUB:
+    st.caption(T.HEADLINE_SUB)
+
+with right:
+    # ① 上区：ROE 射线 —— 保留 Phase 1，叠「对比上次」阴影
+    st.markdown(f"**{T.PANEL_ROE_TITLE}**")
+    roe_fig = _panel(res["days"], res["roe_p05"], res["roe_p50"], res["roe_p95"],
+                     (prev["roe"] if prev else None), "#185FA5", "rgba(24,95,165,A%)",
+                     T.AXIS_ROE_LABEL, zero_ref=False, zero_label="",
+                     base_ref=res["roe_base"], base_label=T.ROE_BASE_LABEL,
+                     this_label=T.SHADE_THIS_LABEL, prev_label=T.SHADE_PREV_LABEL)
+    roe_fig.update_layout(xaxis_showticklabels=False)
+    st.plotly_chart(roe_fig, use_container_width=True)
+    if T.ROE_NOTE:
+        st.caption(T.ROE_NOTE)
+    if prev and T.SHADE_NOTE:
+        st.caption(T.SHADE_NOTE)
+
+    # ② 下区：价值 spread 射线 —— 共享时间轴
+    st.markdown(f"**{T.PANEL_SPR_TITLE}**")
+    if has_ebit:
+        spr_fig = _panel(res["days"], spr_p05, spr_p50, spr_p95,
+                         (prev["spr"] if prev else None), "#C0392B", "rgba(192,57,43,A%)",
+                         T.AXIS_SPR_LABEL, zero_ref=True, zero_label=T.ZERO_LINE_LABEL,
+                         base_ref=None, base_label="",
+                         this_label=T.SHADE_THIS_LABEL, prev_label=T.SHADE_PREV_LABEL)
+        spr_fig.update_layout(xaxis_title=T.AXIS_TIME_LABEL)
+        st.plotly_chart(spr_fig, use_container_width=True)
+        if T.SPREAD_NOTE:
+            st.caption(T.SPREAD_NOTE)
+    else:
+        st.info("当前 simulation_config.json 缺 `ebit_base`：请在 Colab 重跑 "
+                "`python calibration.py` 生成含 Phase 2 字段的 config，价值线即可启用。")
+
+# 存本次中位线，供下次拨动做阴影对照
+if has_ebit:
+    st.session_state[skey] = dict(roe=res["roe_p50"], spr=spr_p50)
+
+# ── 动态裁决 + 基线杜邦解剖 ──
+st.divider()
+if has_ebit:
+    roe_end = res["roe_p50"][-1]
+    spr_end = spr_p50[-1]
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric(T.label("roe"), f"{roe_end:+.1%}", f"{res['roe_delta_end']:+.1%} vs 基准",
+              help=T.tip("roe"))
+    m2.metric(T.label("spread"), (f"{spr_end:+.1%}" if spr_end is not None else "—"),
+              help=T.tip("spread"))
+    m3.metric("β / γ 采用", f"{res['beta_used']:.2f} / {res['gamma_used']:.2f}")
+    m4.metric("象限", res["quadrant"])
+    if spr_end is not None:
+        v = f"{abs(spr_end) * 100:.0f}"                      # {v}=spread 绝对值百分数
+        if spr_end > 0:                                     # CREATE
+            st.success(T.VERDICT_CREATE.format(v=v))
+        elif roe_end > 0:                                   # ① 账面在赚却毁价值（反差）
+            st.error(T.VERDICT_WINSALES_LOSEVALUE.format(v=v))
+        else:                                               # ③ 账面也亏、更谈不上创造
+            st.error(T.VERDICT_DESTROY.format(v=v))
+    else:
+        st.warning(T.VERDICT_NA)
+
+# 基线杜邦（t0 结构解剖，静态）
+bb = config["baseline"][city]
+if all(k in bb for k in ("total_revenue", "total_assets")):
+    dm = financials.compute_value_metrics(
+        operating_income=bb["ebit_base"], net_income=bb["net_income"],
+        total_revenue=bb["total_revenue"], total_assets=bb["total_assets"],
+        shareholders_equity=bb["equity"], interest_bearing_debt=bb["interest_bearing_debt"],
+        cash_and_equivalents=bb["cash_and_equivalents"], quadrant=q, tax_rate=bb["tax_rate"])
+    if T.DUPONT_FORMULA:
+        st.caption(T.DUPONT_FORMULA)
+    d1, d2, d3 = st.columns(3)
+    d1.metric(T.label("net_margin"), f"{dm['net_margin']:+.1%}", help=T.tip("net_margin"))
+    d2.metric(T.label("asset_turnover"), f"{dm['asset_turnover']:.2f}",
+              help=T.tip("asset_turnover"))
+    d3.metric(T.label("equity_multiplier"), f"{dm['equity_multiplier']:.2f}",
+              help=T.tip("equity_multiplier"))
 
 st.divider()
 st.subheader("参数恢复表　(回归估计 vs 埋入真值 · 项目立身之本)")

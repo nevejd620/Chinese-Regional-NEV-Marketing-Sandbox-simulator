@@ -28,6 +28,31 @@ import config
 #   quadrant 为标量（一个 cell 属一个象限）；资本结构口径在 180 天内视为不变，
 #   只有 EBIT/净利随滑块变（价格/成本冲击打的是利润，不是当期资本结构）。
 # ─────────────────────────────────────────────────────────────
+def _invested_capital(interest_bearing_debt, shareholders_equity, cash_and_equivalents):
+    """派生聚合量，运行时算、不入库（schema legend）。"""
+    return interest_bearing_debt + shareholders_equity - cash_and_equivalents
+
+
+def _roic(operating_income, invested_capital, tax_rate):
+    """NOPAT / 投入资本。§C4 容错：投入资本 ≤ 0 → NaN（前沿/轨迹自动跳过）。"""
+    nopat   = operating_income * (1.0 - tax_rate)
+    ic_safe = np.where(np.asarray(invested_capital, dtype=float) > 0,
+                       invested_capital, np.nan)
+    return nopat / ic_safe, nopat
+
+
+def _wacc(quadrant, shareholders_equity, interest_bearing_debt, rf, tax_rate):
+    """市值加权 WACC——**全项目唯一的 WACC 实现**。
+    E 用市值派生（账面权益 × pb_multiple[象限]），非账面（sheet 8）。"""
+    market_equity = shareholders_equity * config.PB_MULTIPLE[quadrant]   # E
+    debt          = interest_bearing_debt                               # D（有息）
+    V             = market_equity + debt
+    cost_equity   = rf + config.EQUITY_BETA[quadrant] * config.ERP       # CAPM
+    cost_debt     = rf + config.CREDIT_SPREAD                            # Rd
+    wacc = (market_equity / V) * cost_equity + (debt / V) * cost_debt * (1.0 - tax_rate)
+    return wacc, cost_equity, cost_debt
+
+
 def compute_value_metrics(
     *,
     operating_income,          # EBIT（ROIC/NOPAT 用，付息前口径）
@@ -46,8 +71,8 @@ def compute_value_metrics(
     if tax_rate is None:
         tax_rate = config.TAX_RATE
 
-    # ── 派生：投入资本（聚合量，运行时算，不读库）──────────────
-    invested_capital = interest_bearing_debt + shareholders_equity - cash_and_equivalents
+    invested_capital = _invested_capital(interest_bearing_debt, shareholders_equity,
+                                         cash_and_equivalents)
 
     # ── 杜邦三因子：ROE = 净利率 × 资产周转率 × 权益乘数 ─────────
     net_margin        = net_income / total_revenue
@@ -55,25 +80,9 @@ def compute_value_metrics(
     equity_multiplier = total_assets / shareholders_equity
     roe               = net_margin * asset_turnover * equity_multiplier   # ≡ net_income/equity
 
-    # ── ROIC = NOPAT / 投入资本 ─────────────────────────────────
-    #   §C4 式容错：若某 cell 投入资本 ≤ 0（现金 > 有息债+权益，或权益被亏损侵蚀为负），
-    #   ROIC 无经济意义 → 标 NaN，让前沿图自动跳过该点，不崩、不出假值。
-    nopat   = operating_income * (1.0 - tax_rate)
-    ic_safe = np.where(np.asarray(invested_capital, dtype=float) > 0,
-                       invested_capital, np.nan)
-    roic    = nopat / ic_safe
-
-    # ── WACC：市值加权（E 用市值派生，不用账面权益）────────────
-    pb            = config.PB_MULTIPLE[quadrant]
-    market_equity = shareholders_equity * pb        # E
-    debt          = interest_bearing_debt           # D（有息）
-    V             = market_equity + debt
-    cost_equity   = rf + config.EQUITY_BETA[quadrant] * config.ERP     # CAPM: Re = rf + β·ERP
-    cost_debt     = rf + config.CREDIT_SPREAD                          # Rd = rf + 信用利差
-    wacc          = (market_equity / V) * cost_equity \
-                    + (debt / V) * cost_debt * (1.0 - tax_rate)        # 债务腿税盾
-
-    # ── 价值裁决 ────────────────────────────────────────────────
+    roic, nopat = _roic(operating_income, invested_capital, tax_rate)
+    wacc, cost_equity, cost_debt = _wacc(quadrant, shareholders_equity,
+                                         interest_bearing_debt, rf, tax_rate)
     spread = roic - wacc                            # 正=创造价值，负=毁灭价值
 
     return dict(
@@ -91,34 +100,55 @@ def compute_value_metrics(
     )
 
 
+def spread_line(operating_income, *, quadrant, shareholders_equity,
+                interest_bearing_debt, cash_and_equivalents, rf=None, tax_rate=None):
+    """Phase 2 动态路径：吃 simulate 的**逐日 EBIT 数组**（年化 run-rate），
+    出逐日 (roic, wacc, spread)。WACC 走 _wacc（资本结构区间内视为不变，只有 EBIT 随滑块动）。
+    operating_income 可为标量或 numpy 数组；返回同形。"""
+    if rf is None:
+        rf = config.MACRO["interest"]["start"]
+    if tax_rate is None:
+        tax_rate = config.TAX_RATE
+    ic = _invested_capital(interest_bearing_debt, shareholders_equity, cash_and_equivalents)
+    roic, _ = _roic(operating_income, ic, tax_rate)
+    wacc, _, _ = _wacc(quadrant, shareholders_equity, interest_bearing_debt, rf, tax_rate)
+    return dict(roic=roic, wacc=wacc, spread=roic - wacc)
+
+
 # ─────────────────────────────────────────────────────────────
 # DB 侧包装：吃 financial_snapshots 截面 → 逐 cell 价值宽表 + 营收增速（横轴）
 #   横轴口径（Phase 2 决策 2）：营收增速，用 CAGR（多期几何年化）。
 # ─────────────────────────────────────────────────────────────
 def value_table_from_snapshots(df):
+    """吃 financial_snapshots（区域×象限×周期）→ 逐 cell 价值宽表。
+
+    Phase 2 校准（真库冒烟后定）：
+      · 裁决口径 = **全期均值**：逐期算指标再平均，不吊在被 drift 压到最惨的末期。
+      · 横轴 = **营收规模 level**（营收均值）：DGP 无增长轨迹（drift 仅微降），
+        营收 CAGR≈0 挤成一条竖线；改用规模 level（象限间 2.3× 分散）讲
+        「大盘商 vs 小众商谁毁价值」——经典价值前沿画法。
+    """
+    has_tax = "tax_rate" in df.columns
     rows = []
     for (region, quadrant), g in df.groupby(["region", "quadrant"]):
         g = g.sort_values("period")
-        rev = g["total_revenue"].to_numpy(dtype=float)
-        if len(rev) >= 2 and rev[0] > 0:
-            revenue_growth = (rev[-1] / rev[0]) ** (1.0 / (len(rev) - 1)) - 1.0  # CAGR
-        else:
-            revenue_growth = np.nan
-        last = g.iloc[-1]                            # 最近一期截面做裁决
-        m = compute_value_metrics(
-            operating_income=float(last["operating_income"]),
-            net_income=float(last["net_income"]),
-            total_revenue=float(last["total_revenue"]),
-            total_assets=float(last["total_assets"]),
-            shareholders_equity=float(last["shareholders_equity"]),
-            interest_bearing_debt=float(last["interest_bearing_debt"]),
-            cash_and_equivalents=float(last["cash_and_equivalents"]),
-            quadrant=quadrant,
-            tax_rate=float(last["tax_rate"]) if "tax_rate" in last else None,
-        )
-        m.update(region=region, quadrant=quadrant, revenue_growth=revenue_growth)
-        rows.append(m)
-    cols = ["region", "quadrant", "revenue_growth",
+        per = [compute_value_metrics(
+                    operating_income=float(r.operating_income),
+                    net_income=float(r.net_income),
+                    total_revenue=float(r.total_revenue),
+                    total_assets=float(r.total_assets),
+                    shareholders_equity=float(r.shareholders_equity),
+                    interest_bearing_debt=float(r.interest_bearing_debt),
+                    cash_and_equivalents=float(r.cash_and_equivalents),
+                    quadrant=quadrant,
+                    tax_rate=float(r.tax_rate) if has_tax else None,
+               ) for r in g.itertuples()]
+        agg = {k: float(np.nanmean([p[k] for p in per])) for k in per[0]}   # 全期均值
+        agg["region"] = region
+        agg["quadrant"] = quadrant
+        agg["revenue_scale"] = float(g["total_revenue"].mean())            # 新横轴：规模 level
+        rows.append(agg)
+    cols = ["region", "quadrant", "revenue_scale",
             "net_margin", "asset_turnover", "equity_multiplier", "roe",
             "roic", "wacc", "spread", "invested_capital", "nopat",
             "cost_equity", "cost_debt"]

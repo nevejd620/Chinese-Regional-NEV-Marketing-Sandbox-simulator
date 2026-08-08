@@ -140,9 +140,18 @@ def _baseline_pack(db: Path = DB_PATH) -> dict:
         base_qty = rev / a if a else np.nan
         # back out fixed cost so ROE_base == net_income/equity exactly (engine ties to DB)
         fixed_cost = (a - uc) * base_qty - ni
+        # Phase 2: carry balance-sheet + EBIT anchors so the engine can build a
+        # daily EBIT line (EBIT = net + frozen wedge) and financials.py can compute
+        # ROIC/WACC/spread. These are baseline (t0) values, held over the horizon.
         pack[r] = dict(quadrant=row.quadrant, asp=a, unit_cost=uc,
                        base_qty=base_qty, fixed_cost=fixed_cost, equity=eq,
-                       revenue=rev, net_income=ni, roe_base=ni / eq if eq else np.nan)
+                       revenue=rev, net_income=ni, roe_base=ni / eq if eq else np.nan,
+                       ebit_base=float(row.operating_income),
+                       interest_bearing_debt=float(row.interest_bearing_debt),
+                       cash_and_equivalents=float(row.cash_and_equivalents),
+                       tax_rate=float(row.tax_rate),
+                       total_revenue=float(row.total_revenue),
+                       total_assets=float(row.total_assets))
     return pack
 
 

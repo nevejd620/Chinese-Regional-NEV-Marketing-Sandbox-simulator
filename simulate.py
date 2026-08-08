@@ -85,6 +85,20 @@ def simulate_roe(city: str, sliders: dict, config: dict,
     profit  = revenue - cost
     roe_rr  = profit * 365.0 / equity                         # annualised run-rate (n_mc, H)
 
+    # Phase 2: EBIT run-rate line via a frozen wedge.
+    #   wedge = ebit_base − net_base = baseline (interest + tax), held over the horizon.
+    #   → ebit_rr = profit·365 + wedge.  At t0 this ≡ ebit_base (operating_income).
+    #   Sliders hit price/volume/unit-cost (all above EBIT), so EBIT moves like profit.
+    #   Approx: intra-horizon tax-scaling of the wedge is frozen; financials re-applies
+    #   tax cleanly via NOPAT=EBIT·(1−tax). Documented in Phase 2 audit log.
+    ebit_base = b.get("ebit_base")
+    if ebit_base is not None:
+        wedge   = float(ebit_base) - roe_base * equity        # baseline interest+tax
+        ebit_rr = profit * 365.0 + wedge                      # (n_mc, H) annualised EBIT
+        e05, e50, e95 = np.percentile(ebit_rr, [5, 50, 95], axis=0)
+    else:
+        e05 = e50 = e95 = None                                # engine still runs w/o Phase 2 fields
+
     p05, p50, p95 = np.percentile(roe_rr, [5, 50, 95], axis=0)
 
     def _breakdown(idx):
@@ -97,6 +111,15 @@ def simulate_roe(city: str, sliders: dict, config: dict,
                 days=t.tolist(), roe_base=roe_base,
                 roe_p05=p05.tolist(), roe_p50=p50.tolist(), roe_p95=p95.tolist(),
                 roe_delta_end=float(p50[-1] - roe_base),
+                # Phase 2: EBIT run-rate band (None if config lacks ebit_base) +
+                # baseline balance-sheet items so app.py can call financials.spread_line.
+                ebit_p05=(e05.tolist() if e05 is not None else None),
+                ebit_p50=(e50.tolist() if e50 is not None else None),
+                ebit_p95=(e95.tolist() if e95 is not None else None),
+                ebit_base=b.get("ebit_base"),
+                interest_bearing_debt=b.get("interest_bearing_debt"),
+                cash_and_equivalents=b.get("cash_and_equivalents"),
+                shareholders_equity=equity, tax_rate=b.get("tax_rate"),
                 breakdown_t0=_breakdown(0), breakdown_tH=_breakdown(horizon - 1),
                 beta_used=float(beta_c["value"]), gamma_used=float(gamma_c["value"]))
 
