@@ -280,7 +280,7 @@ def chart_two(region, quad, eco_invest=0.0, alliance_on=False):
         fin = firm_financials(f["quad"], f["p0"], f["cost"], base_vol, eco_invest=0.0)
         points.append(dict(firm_id=f["firm_id"], is_user=False, quad=f["quad"], home=f["home"],
                            a_value=a_value, in_alliance=(f["swap_alliance"] is not None),
-                           spread=fin["spread"], roic=fin["roic"], wacc=fin["wacc"]))
+                           spread=fin["spread"], roic=fin["roic"], roe=fin["roe"], wacc=fin["wacc"]))
 
     user = build_user_firm(region, quad, eco_invest=eco_invest, alliance_on=alliance_on)
     a_value = user["a_base"] + user["a_eco"] + user["a_ally"]
@@ -290,7 +290,7 @@ def chart_two(region, quad, eco_invest=0.0, alliance_on=False):
                           eco_invest=eco_invest)
     points.append(dict(firm_id="YOU", is_user=True, quad=quad, home=region,
                        a_value=a_value, in_alliance=alliance_on,
-                       spread=fin["spread"], roic=fin["roic"], wacc=fin["wacc"]))
+                       spread=fin["spread"], roic=fin["roic"], roe=fin["roe"], wacc=fin["wacc"]))
 
     present = {p["firm_id"] for p in points}
     edges = [dict(alliance=name, a=x, b=y, cross_quadrant=(x[:2] != y[:2]))

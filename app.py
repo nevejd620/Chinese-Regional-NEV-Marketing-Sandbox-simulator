@@ -285,17 +285,17 @@ def render_phase3():
         fig.add_hline(y=0, line_dash="dot", line_color="gray", row=1, col=1)
         fig.update_xaxes(title_text=T.CHART1_XAXIS, tickformat=".0%", row=1, col=1)
         fig.update_yaxes(title_text=y_lab_1, row=1, col=1)
-        # 图二：aᵢ × spread + 联盟连边
+        # 图二：aᵢ × 记分尺子（与图一同一把尺）+ 联盟连边
         pt_by_id = {p["firm_id"]: p for p in c2["points"]}
         for e in c2["edges"]:
             a, b = pt_by_id.get(e["a"]), pt_by_id.get(e["b"])
             if a and b:
                 fig.add_trace(go.Scatter(
-                    x=[a["a_value"], b["a_value"]], y=[a["spread"], b["spread"]],
+                    x=[a["a_value"], b["a_value"]], y=[a.get(y_key_1), b.get(y_key_1)],
                     mode="lines", line=dict(width=2, color="rgba(120,180,120,0.7)", dash="dot"),
                     hoverinfo="skip", showlegend=False), row=2, col=1)
         x2 = [p["a_value"] for p in c2["points"]]
-        y2 = [p["spread"] for p in c2["points"]]
+        y2 = [p.get(y_key_1) for p in c2["points"]]
         lab2 = [("你" if p["is_user"] else p["firm_id"]) for p in c2["points"]]
         col2 = ["#e4572e" if p["is_user"] else ("#5aa469" if p["in_alliance"] else "#9aa7b4")
                 for p in c2["points"]]
@@ -303,13 +303,13 @@ def render_phase3():
         fig.add_trace(go.Scatter(
             x=x2, y=y2, mode="markers+text", text=lab2, textposition="top center",
             marker=dict(size=siz2, color=col2, line=dict(width=1, color="white")),
-            hovertext=[f"{l}｜{p['quad']}｜非价格吸引力 {p['a_value']:.2f}｜价值创造 {T.fmt_pct(p['spread'])}"
+            hovertext=[f"{l}｜{p['quad']}｜非价格吸引力 {p['a_value']:.2f}｜{y_lab_1} {T.fmt_pct(p.get(y_key_1))}"
                        + ("｜在盟" if p["in_alliance"] else "")
                        for l, p in zip(lab2, c2["points"])],
             hoverinfo="text", showlegend=False), row=2, col=1)
         fig.add_hline(y=0, line_dash="dot", line_color="gray", row=2, col=1)
         fig.update_xaxes(title_text=T.CHART2_XAXIS, row=2, col=1)
-        fig.update_yaxes(title_text=T.YAXIS_SPREAD, row=2, col=1)
+        fig.update_yaxes(title_text=y_lab_1, row=2, col=1)
         fig.update_layout(height=760, margin=dict(t=60, b=40, l=60, r=30))
         st.plotly_chart(fig, use_container_width=True)
         st.caption(f"{T.CHART1_SUB}　|　{T.CHART2_SUB}")
@@ -323,7 +323,7 @@ def render_phase3():
         r1 = T.READOUT_C1.format(share=you1["share"], spread=T.fmt_pct(you1["spread"]),
                                  srank=v.get("share_rank", "—"), vrank=v.get("spread_rank", "—"),
                                  flip=flip)
-        r2 = T.READOUT_C2.format(a=you2["a_value"], spread=T.fmt_pct(you2["spread"]),
+        r2 = T.READOUT_C2.format(a=you2["a_value"], spread=T.fmt_pct(you2.get(y_key_1)),
                                  ally=(T.READOUT_ALLY if ally else ""))
         col_a, col_b = st.columns(2)
         col_a.markdown("**图一读数 · 象限内竞争**"); col_a.write(r1)
