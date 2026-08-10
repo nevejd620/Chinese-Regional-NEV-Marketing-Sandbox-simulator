@@ -83,3 +83,99 @@ PB_MULTIPLE = {"Q1": 3.0, "Q2": 2.2, "Q3": 1.5, "Q4": 1.2}   # 象限估值倍�
 EQUITY_BETA   = {"Q1": 1.6, "Q2": 1.2, "Q3": 1.0, "Q4": 1.1}
 # 债务成本信用利差：Rd = rf + spread。先用统一 +2.0%（沿用默认，需要再按象限分）。
 CREDIT_SPREAD = 0.020
+
+
+# =============================================================================
+# ══════════════════════════ Phase 3 · 博弈层扩展（只增不改）══════════════════
+# =============================================================================
+# 说明：以下全部为 Phase 3 新增的【博弈层规则常数】，直接追加在本文件末尾
+# （沿用本 config.py 的 append-only 规矩）。上方 Phase 0–2 的量一律复用、绝不重定义：
+#   β=BETA_DEMAND · θ=THETA_Q · γ 成本代理=BATTERY_CLUSTER · QUAD_PROFILE(键 asp/margin/
+#   turnover/de，均为 (lo,hi) 带) · PB_MULTIPLE · EQUITY_BETA · ERP · CREDIT_SPREAD ·
+#   TAX_RATE · rf=MACRO["interest"]["start"]。
+# 17 家预设企业＝表外博弈玩家（类比 Tesla 锚点，绝对额不落 nev.db）。
+
+# ── 市场禀赋新维（cluster 已在上方 BATTERY_CLUSTER；这里只补 market：本地需求体量拉力）──
+MARKET_ENDOWMENT = {
+    "Shanghai": 0.70, "Hefei": 0.56, "Shenzhen": 0.91, "Changzhou": 0.55,
+    "Xian": 0.36, "Liuzhou": 0.45,
+}
+
+RF_START = MACRO["interest"]["start"]   # 无风险利率起点(=0.030)，供 game 读
+
+def cluster(region):   # γ 成本传导代理（复用真 BATTERY_CLUSTER）
+    return BATTERY_CLUSTER.get(region, 0.5)
+
+def market(region):    # 市场体量拉力（P3 新维）
+    return MARKET_ENDOWMENT.get(region, 0.5)
+
+# ── 竞争类型映射（P3.11：象限→竞技场类型；规则常数、非数据）──
+COMPETITION_TYPE_MAP = {
+    "Q1": "price_share", "Q2": "price_share", "Q3": "ecosystem", "Q4": "comparative",
+}
+
+# 象限国内总蛋糕 TAM（相对份额×体量用；量纲不重要，只做相对）
+QUAD_TAM = {"Q1": 60.0, "Q2": 50.0, "Q3": 120.0, "Q4": 90.0}
+
+# ── Logit 份额 / 非价格吸引力 aᵢ / 生态·联盟 旋钮（数值层设定，可调不改结构）──
+A_BASE   = 3.0        # 非价格吸引力共同截距（softmax 不溢出；象限内同加同减不改份额）
+A_POS    = 1.2        # positioning(定位)→aᵢ 斜率
+QUAD_A_TILT = {"Q1": 0.6, "Q2": 0.5, "Q3": 0.3, "Q4": -0.2}   # 象限固有非价格倾向
+A_MARKET = 0.4        # 市场禀赋(market)→aᵢ 小幅拉动
+
+ECO_GAIN = 1.2        # 生态投资→aᵢ：a_eco = ECO_GAIN·sqrt(invest)（边际递减）
+ECO_OPEX = 0.06       # 生态投资折当期营收占比费用（吃当期 EBIT，换未来 aᵢ——真实权衡）
+ALLY_GAIN = 0.8       # 换电联盟：入盟且盟友在场→各 +ALLY_GAIN 到 aᵢ（图二上浮）
+ECO_SLIDER_MAX = 1.0  # 生态投资滑块上限（0–1）
+
+COST_RELIEF = 0.12    # 集群减免：unit_cost ×= (1 − COST_RELIEF·(cluster−0.5))
+
+# 合成资产负债表比率（真 QUAD_PROFILE 无 eq/cash-占资产列——这两条是 Phase 3 为“表外
+# 合成企业”补的数值层设定；de/turnover/margin/asp 仍全走真 QUAD_PROFILE）
+BS_EQ_ASSET   = {"Q1": 0.28, "Q2": 0.45, "Q3": 0.40, "Q4": 0.35}   # 股东权益占总资产
+BS_CASH_ASSET = {"Q1": 0.25, "Q2": 0.30, "Q3": 0.20, "Q4": 0.20}   # 现金占总资产
+
+# ── 17 预设博弈企业（§C 落位）+ 换电联盟 A/B/C + 天然不结盟锚点 ──
+# home 全部取自上方 REGIONS；quad×home 自由（博弈层 city⊥quadrant）
+PRESET_FIRMS = [
+    dict(firm_id="Q1-1", quad="Q1", home="Shanghai",  pos=0.90, firm_swaps=0, swap_alliance=None, note="Tesla 影子·原型级天然不结盟（不换电→不入盟）"),
+    dict(firm_id="Q1-2", quad="Q1", home="Hefei",     pos=0.70, firm_swaps=1, swap_alliance="A",  note="蔚来型主锚·换电先锋·盟A↔Q3-2"),
+    dict(firm_id="Q1-3", quad="Q1", home="Hefei",     pos=0.55, firm_swaps=1, swap_alliance="C",  note="盟C↔Q1-5（Q1 内部）"),
+    dict(firm_id="Q1-4", quad="Q1", home="Shenzhen",  pos=0.62, firm_swaps=1, swap_alliance="B",  note="盟B↔Q3-3"),
+    dict(firm_id="Q1-5", quad="Q1", home="Shanghai",  pos=0.48, firm_swaps=1, swap_alliance="C",  note="盟C↔Q1-3（Q1 内部）"),
+    dict(firm_id="Q2-1", quad="Q2", home="Shenzhen",  pos=0.85, firm_swaps=0, swap_alliance=None, note="Q2 全员不结盟"),
+    dict(firm_id="Q2-2", quad="Q2", home="Shanghai",  pos=0.72, firm_swaps=0, swap_alliance=None, note="Q2 全员不结盟"),
+    dict(firm_id="Q2-3", quad="Q2", home="Changzhou", pos=0.60, firm_swaps=0, swap_alliance=None, note="Q2 全员不结盟"),
+    dict(firm_id="Q2-4", quad="Q2", home="Xian",      pos=0.50, firm_swaps=0, swap_alliance=None, note="Q2 全员不结盟"),
+    dict(firm_id="Q2-5", quad="Q2", home="Shenzhen",  pos=0.40, firm_swaps=0, swap_alliance=None, note="Q2 全员不结盟"),
+    dict(firm_id="Q3-1", quad="Q3", home="Hefei",     pos=0.80, firm_swaps=1, swap_alliance=None, note="比亚迪型主锚·原型级天然不结盟（垂直整合·自有补能生态）"),
+    dict(firm_id="Q3-2", quad="Q3", home="Xian",      pos=0.45, firm_swaps=1, swap_alliance="A",  note="蔚来型跨象限盟友·盟A↔Q1-2"),
+    dict(firm_id="Q3-3", quad="Q3", home="Shenzhen",  pos=0.58, firm_swaps=1, swap_alliance="B",  note="盟B↔Q1-4"),
+    dict(firm_id="Q3-4", quad="Q3", home="Shanghai",  pos=0.50, firm_swaps=0, swap_alliance=None, note=""),
+    dict(firm_id="Q4-1", quad="Q4", home="Liuzhou",   pos=0.55, firm_swaps=0, swap_alliance=None, note="Q4 全员不结盟"),
+    dict(firm_id="Q4-2", quad="Q4", home="Liuzhou",   pos=0.45, firm_swaps=0, swap_alliance=None, note="比亚迪入门辅锚·宽口径天然不结盟"),
+    dict(firm_id="Q4-3", quad="Q4", home="Xian",      pos=0.40, firm_swaps=0, swap_alliance=None, note="Q4 全员不结盟"),
+]
+
+ALLIANCES = {
+    "A": ("Q1-2", "Q3-2"),   # 跨象限 Q1↔Q3
+    "B": ("Q1-4", "Q3-3"),   # 跨象限 Q1↔Q3
+    "C": ("Q1-3", "Q1-5"),   # Q1 内部
+}
+
+NATURAL_NON_ALLY = {"Q1-1", "Q3-1", "Q4-2"}   # 特斯拉、比亚迪主锚、比亚迪入门辅锚
+
+def firms_in_quadrant(quad):
+    """图一玩家：同象限（全国）预设企业。"""
+    return [f for f in PRESET_FIRMS if f["quad"] == quad]
+
+def alliance_partner(firm_id):
+    """返回该 firm 的盟友 firm_id；天然不结盟企业恒 None。"""
+    if firm_id in NATURAL_NON_ALLY:
+        return None
+    for a, b in ALLIANCES.values():
+        if firm_id == a:
+            return b
+        if firm_id == b:
+            return a
+    return None
