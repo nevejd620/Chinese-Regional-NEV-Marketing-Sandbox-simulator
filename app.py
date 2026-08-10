@@ -247,13 +247,15 @@ def render_phase3():
         region = st.selectbox("选址城市", C.REGIONS, format_func=lambda c: CITY_CN[c],
                               index=1, key="p3_region")
         quad = st.selectbox("战略象限", list(C.QUAD_PROFILE.keys()),
-                            format_func=lambda q: QUAD_CN[q], index=0, key="p3_quad")
+                            format_func=lambda q: T.QUAD_CELL[q]["short"], index=0, key="p3_quad")
         price_pct = st.slider(T.SLIDER_PRICE, -30, 15, 0, step=1, key="p3_price")
         eco = st.slider(T.SLIDER_ECO, 0.0, C.ECO_SLIDER_MAX, 0.0, step=0.05, key="p3_eco")
         ally = st.toggle(T.TOGGLE_ALLY, value=False, key="p3_ally")
         st.divider()
-        scorer = st.radio(T.SCORER_LABEL, list(T.SCORER_NAMES.keys()),
-                          format_func=lambda s: T.SCORER_NAMES[s], key="p3_scorer")
+        # 记分尺子 = 图一纵轴用哪把量尺。份额已是图一横轴，不再作纵轴尺子，只留三把"值不值"的尺子。
+        ruler_opts = [k for k in T.SCORER_NAMES if k != "share"]   # spread / roe / roic
+        scorer = st.radio(T.SCORER_LABEL, ruler_opts,
+                          format_func=lambda s: T.SCORER_NAMES[s], key="p3_ruler")
         with st.expander("关于 / 诚实声明"):
             st.caption(T.PROXY_NOTE_P3)
 
@@ -262,8 +264,8 @@ def render_phase3():
     user_price = p0 * (1.0 + price_pct / 100.0)
     c1 = game.chart_one(region, quad, user_price=user_price, eco_invest=eco)
     c2 = game.chart_two(region, quad, eco_invest=eco, alliance_on=ally)
-    y_key_1 = scorer if scorer in ("spread", "roe", "roic") else "spread"
-    y_lab_1 = T.SCORER_NAMES.get(scorer, T.YAXIS_SPREAD)
+    y_key_1 = scorer                    # spread / roe / roic —— 纵坐标随尺子切换
+    y_lab_1 = T.SCORER_NAMES[scorer]    # 数据与标签同源，不再出现"标签=份额、数值=价值"的错位
 
     with c_main:
         fig = make_subplots(rows=2, cols=1, vertical_spacing=0.16,
@@ -329,11 +331,72 @@ def render_phase3():
         col_b.markdown("**图二读数 · 区域/全国竞合**"); col_b.write(r2)
 
 
-# ══════════════════════════ 单一入口 · 双 tab ══════════════════════════
+# ══════════════════════════ 象限地图（Phase 2/3 共享）══════════════════════════
 import config as C
+
+
+def _quad_stats(q):
+    """从 config 真值拼该象限的 β/θ/ASP/毛利 —— 进卡片 ⓘ tooltip，与引擎同源、不手抄。"""
+    b = C.BETA_DEMAND[q]
+    th = C.THETA_Q[q]
+    lo, hi = C.QUAD_PROFILE[q]["asp"]
+    m0, m1 = C.QUAD_PROFILE[q]["margin"]
+    return (f"价格弹性 β {b} · 定价权 θ {th} · "
+            f"ASP {lo/1e4:g}–{hi/1e4:g}万 · 毛利 {m0*100:.0f}–{m1*100:.0f}%")
+
+
+def _quad_card(col, q, highlight=None, compact=False):
+    cell = T.QUAD_CELL[q]
+    with col.container(border=True):
+        st.markdown(f"**{cell['name']}**")                     # 名称（全称定位）
+        if q == highlight:
+            st.markdown(":blue-background[◀ 你选的象限]")       # 精简条高亮
+        if compact:
+            st.caption(f"打法 · {cell['play']}")               # 精简条：只留一句打法
+        else:
+            st.markdown(f"**{T.QUAD_FIELD['feature']}**：{cell['feature']}")
+            st.markdown(f"**{T.QUAD_FIELD['anchors']}**：{cell['anchors']}")
+            st.markdown(f"**{T.QUAD_FIELD['strategy']}**：{cell['strategy']}")
+            st.markdown(f"**{T.QUAD_FIELD['params']}**：{_quad_stats(q)}")
+
+
+def render_quadrant_map(highlight=None, compact=False):
+    """2×2 象限地图。compact=True 为双 tab 上方精简条（可高亮所选象限）；否则为「象限地图」tab 详版。"""
+    if not compact:
+        st.subheader(T.QUAD_MAP_TITLE)
+        st.caption(T.QUAD_MAP_INTRO)
+    st.caption(T.QUAD_AXIS_Y_TOP)                              # ▲ Premium
+    r1c1, r1c2 = st.columns(2)                                 # 上排：Premium 行
+    _quad_card(r1c1, "Q1", highlight, compact)
+    _quad_card(r1c2, "Q2", highlight, compact)
+    r2c1, r2c2 = st.columns(2)                                 # 下排：Mass 行
+    _quad_card(r2c1, "Q4", highlight, compact)
+    _quad_card(r2c2, "Q3", highlight, compact)
+    st.caption(T.QUAD_AXIS_Y_BOT)                              # ▼ Mass
+    st.caption(T.QUAD_AXIS_X)                                  # 横轴：BEV ↔ Multi
+    if not compact:
+        st.caption(T.QUAD_MAP_NOTE)
+        if T.PARAM_BETA_DESC or T.PARAM_THETA_DESC:            # β/θ 解释（你写了才显示）
+            st.divider()
+            st.markdown(f"**{T.PARAM_READ_TITLE}**")
+            if T.PARAM_BETA_DESC:
+                st.markdown(f"- **β**：{T.PARAM_BETA_DESC}")
+            if T.PARAM_THETA_DESC:
+                st.markdown(f"- **θ**：{T.PARAM_THETA_DESC}")
+
+
+# ══════════════════════════ 单一入口 · 三 tab + 顶部象限条 ══════════════════════════
 st.title("新能源汽车区域选址 · 定价博弈沙盘")
-tab_p2, tab_p3 = st.tabs(["Phase 2 · 财务解剖与价值裁决", "Phase 3 · 全国定价博弈与竞合"])
+
+with st.expander(T.QUAD_MAP_TITLE, expanded=True):            # 双 tab 上方 · 默认展开精简版
+    _hl = st.session_state.get("p3_quad", list(C.QUAD_PROFILE.keys())[0])
+    render_quadrant_map(highlight=_hl, compact=True)          # 高亮 Phase 3 里所选象限
+
+tab_p2, tab_p3, tab_quad = st.tabs(
+    ["Phase 2 · 财务解剖与价值裁决", "Phase 3 · 全国定价博弈与竞合", "象限地图"])
 with tab_p2:
     render_phase2(config)
 with tab_p3:
     render_phase3()
+with tab_quad:
+    render_quadrant_map()                                     # 详版
