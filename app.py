@@ -365,7 +365,10 @@ def render_phase3():
             hovertext=[f"{l}｜份额 {p['share']:.0%}｜价值创造 {T.fmt_pct(p['spread'])}"
                        for l, p in zip(labels, c1["points"])],
             hoverinfo="text", showlegend=False), row=1, col=1)
-        fig.add_hline(y=0, line_dash="dot", line_color="gray", row=1, col=1)
+        # 价值零线：线上=创造价值，线下=毁灭价值（与 Phase 2 同款红虚线+标注）
+        fig.add_hline(y=0, line=dict(color="#C0392B", dash="dash"),
+                      annotation_text=T.ZERO_LINE_P3, annotation_position="top left",
+                      annotation_font=dict(color="#C0392B", size=11), row=1, col=1)
         fig.update_xaxes(title_text=T.CHART1_XAXIS, tickformat=".0%", row=1, col=1)
         fig.update_yaxes(title_text=y_lab_1, row=1, col=1)
         # 图二：aᵢ × 记分尺子（与图一同一把尺）+ 联盟连边
@@ -413,12 +416,15 @@ def render_phase3():
                 hovertext=[_hover(p, "你") for p in you_pts],
                 hoverinfo="text", showlegend=True), row=2, col=1)
 
-        fig.add_hline(y=0, line_dash="dot", line_color="gray", row=2, col=1)
+        fig.add_hline(y=0, line=dict(color="#C0392B", dash="dash"),
+                      annotation_text=T.ZERO_LINE_P3, annotation_position="top left",
+                      annotation_font=dict(color="#C0392B", size=11), row=2, col=1)
         fig.update_xaxes(title_text=T.CHART2_XAXIS, row=2, col=1)
         fig.update_yaxes(title_text=y_lab_1, row=2, col=1)
-        fig.update_layout(height=760, margin=dict(t=60, b=40, l=60, r=30),
-                          legend=dict(orientation="h", yanchor="top", y=-0.06,
-                                      xanchor="center", x=0.5))
+        fig.update_layout(height=820, margin=dict(t=60, b=110, l=60, r=30),
+                          legend=dict(orientation="h", yanchor="top", y=-0.13,
+                                      xanchor="center", x=0.5,
+                                      title_text="象限"))
         st.plotly_chart(fig, use_container_width=True)
         st.caption(f"{T.CHART1_SUB}　|　{T.CHART2_SUB}")
 
