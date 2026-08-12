@@ -4,17 +4,21 @@
 > 场景：中国新能源汽车（NEV）产业的区域选址 × 象限战略博弈。
 
 **🔗 在线演示**：https://chinese-regional-nev-marketing-sandbox-simulator-3lpxhv6sebdda.streamlit.app/
-（Phase 2 已上线：拨滑块看 **ROE 射线 + 价值 spread 双线联动** + 动态裁决 + 参数恢复表）
+（Phase 3 已上线：**象限地图** + **Phase 2 财务解剖**（ROE/spread 双线联动）+ **Phase 3 全国定价博弈**（双散点 + 四态裁决 + 记分尺子））
 
 ---
 
 ## 这是什么
 
-一个把**选址禀赋 → 象限战略 → 定价博弈 → 财务价值裁决**串成一条因果链的决策支持沙盘。用户拨动战术/战略旋钮，系统即时推演 180 天，**上看 ROE（赚得多不多）、下看 spread = ROIC − WACC（这份回报值不值）**，两条线同步迁移给出价值裁决；RAG 层（Phase 4）再配一段有地方产业文献支撑的诊断简报。
+一个把**选址禀赋 → 象限战略 → 定价博弈 → 财务价值裁决**串成一条因果链的决策支持沙盘。用户拨动战术/战略旋钮：在 **Phase 2** 看单企业 180 天的 **ROE（赚得多不多）+ spread = ROIC − WACC（这份回报值不值）** 双线联动；在 **Phase 3** 进入全国定价博弈——你定价、对手用 Nash 最优反应还手，双散点给出四态裁决。RAG 层（Phase 4）再配一段有地方产业文献支撑的诊断简报。
 
 **核心分析视角**：赢销量 ≠ 赢价值。价格战把 ROE 拨高的同时，常把 spread 拨到零轴下——**赢了销量，毁了价值**。
 
-**一条时间轴主线**：生产前选址（Phase 0–1）→ 生产后独自结算（Phase 2，本阶段）→ 生产后互搏（Phase 3）。区域内不博弈（选址先于博弈 + 禀赋近似垄断），竞争只在全国·同象限。
+Phase 3 把它推进了一层：**价格可复制、生态位不可复制**，所以价格战里几乎没有价值上的赢家——即便靠规模打赢，也常是同象限里回报最差的那个（裁决 `CREATE_TRAIL`）。真正拉开 spread 的是换电联盟、垂直整合这类不可复制的结构性壁垒。
+
+**一条时间轴主线**：生产前选址（Phase 0–1）→ 生产后独自结算（Phase 2）→ 生产后互搏（Phase 3，本阶段）。
+
+> Phase 3 已推翻旧推论「区域内不博弈」：现冻结 **城市 ⊥ 象限解耦**——城市是选址候选地、非归属象限，同一城市可承载多象限企业。
 
 ## 诚实声明（务必先读）
 
@@ -22,6 +26,7 @@
 - 行为系数 β（价格弹性）、γ（成本传导）为**「设定并经回归恢复验证」**，是**参数恢复（parameter recovery）**方法演示，非实证研究。
 - 九家真实车企（蔚来/理想/比亚迪/小鹏/赛力斯等）仅作**锚点参照**校准可行域；沙盘里一个点是"某区域×象限的**代表性企业**"，非某家真公司、非"市场"。
 - 沙盘引擎的数字是**确定性、可复现**的；RAG 只解释数字、绝不生产数字（LLM 幻觉够不到财务计算）。
+- Phase 3 博弈层：**你＝外生价格领导者**，对手对你的价做 Nash 最优反应。这是**比较静态**（「你的决策后果」），**非「先手优势」**。规模效应用常弹性幂律近似，未建 MES 拐点，会高估高产量端收益——参数取产业常识设定值，非实测标定。
 
 ## 架构一览
 
@@ -29,17 +34,17 @@
 |---|---|---|
 | SQL（数值资产层） | 带时间戳/区位·象限标签的原子流水 | `nev.db`（6 表 + 车型维度） |
 | JSON（规则系数层） | β/γ/θ、CAPM 常数、象限定价带等 | `config.py`（真值） → `simulation_config.json`（回归恢复后，引擎输入） |
-| 模型 | 离线标定（`calibration.py`）+ 在线推演（`simulate.py`）+ 价值后处理（`financials.py`） | 见下 |
+| 模型 | 离线标定（`calibration.py`）+ 在线推演（`simulate.py`）+ 价值后处理（`financials.py`）+ **博弈引擎（`game.py`）** | 见下 |
 | 文案（显示层） | 术语→人话翻译，两层交互，改它不重跑 | `copy_cn.py` |
 
-详见 `PHASE0_audit_log.md`、`PHASE1_audit_log.md`、`PHASE2_audit_log.md`、`NEV_architecture.svg`、ER 图。范围护栏见 `0PROJECT_CHARTER_scope.md`。
+详见 `PHASE0_audit_log.md`、`PHASE1_audit_log.md`、`PHASE2_audit_log.md`、`PHASE3_audit_log.md`、`NEV_architecture.svg`、ER 图。范围护栏见 `0PROJECT_CHARTER_scope.md`。
 
 ## 阶段路线
 
 - **Phase 0 · 数据地基** ✅（v0.1）
 - **Phase 1 · 单城市引擎 + 上线** ✅（v0.2）
-- **Phase 2 · 财务解剖与价值裁决**（当前）✅（v0.3）：杜邦 + ROIC/WACC + **ROE/spread 双线动态联动**
-- Phase 3：全国定价博弈（Logit-Bertrand，四象限竞技场，相对排名回归）
+- **Phase 2 · 财务解剖与价值裁决** ✅（v0.3）：杜邦 + ROIC/WACC + **ROE/spread 双线动态联动**
+- **Phase 3 · 全国定价博弈与竞合**（当前）✅（v0.4）：Logit-Bertrand + Nash 最优反应 + 四象限竞技场 + 换电联盟 + 跨象限外溢 + 规模效应 + 四态裁决 + 记分尺子
 - Phase 4：Action-triggered RAG + 总裁办简报
 - Phase 5：收尾与叙事
 
@@ -49,7 +54,8 @@
 ```bash
 pip install -r requirements.txt      # 需 pandas>=2.2
 python calibration.py     # 读 nev.db → 回归恢复 β/γ → 写含 Phase2 字段的 simulation_config.json + 恢复表
-streamlit run app.py      # 起沙盘：城市 + 3 滑块 + ROE/spread 双线 + 动态裁决 + 恢复表
+python game.py            # Phase 3 博弈引擎冒烟（方向性断言 + §E 自检）
+streamlit run app.py      # 起沙盘：三 tab（象限地图 / Phase 2 双线 / Phase 3 双散点）
 ```
 
 **Google Colab**
@@ -84,6 +90,11 @@ jupyter notebook NEV_Phase0.ipynb
 | `financials.py` | 杜邦 + ROIC + 市值加权 WACC + spread；静态/动态共用单一 WACC | ✅ |
 | `copy_cn.py` | 人话文案层（纯显示，两层交互） | ✅ |
 | `PHASE2_audit_log.md` / `RELEASE_v0.3.md` | 价值裁决设计 / 发布说明 | ✅ |
+| **Phase 3** | | |
+| `game.py` | 博弈引擎：Logit 份额 + Nash/Bertrand 最优反应 + 生态/联盟 + 跨象限外溢 + 规模效应；纯 python 无 LLM | ✅ |
+| `config.py` | +17 预设企业 / 换电联盟 / 竞争类型映射 / Logit·生态·联盟旋钮 / `SIGMA_CROSS` / `SCALE_ELASTICITY` | ✅ |
+| `app.py` | 三 tab：象限地图 · Phase 2 双线 · Phase 3 双散点（3 动作旋钮 + 记分尺子 + 预设战略） | ✅ |
+| `PHASE3_audit_log.md` | 博弈层设计 / 冻结决策 / §E 验收 | ✅ |
 | **通用** | | |
 | `requirements.txt` | 依赖（pandas>=2.2 / numpy / statsmodels / plotly / streamlit / scipy） | ✅ |
 | `0PROJECT_CHARTER_scope.md` | 范围护栏（刹车片） | ✅ |
@@ -102,6 +113,13 @@ jupyter notebook NEV_Phase0.ipynb
 - 裁决四态选句正确 · 文案全走 `copy_cn`
 - 参数恢复 β 4/4 全绿；γ 8/10（Shanghai/Xian 两区待优化，见 `PHASE2_audit_log.md` §G）
 
+**Phase 3**：
+- 图一：拨定价打价格战 → 你被卷入价格战漩涡、对手坚守利润空间，你被打到**价值利差末位**（尺子翻转）
+- 图二：生态/联盟 → aᵢ 上浮、联盟连边；Q2/Q4/Q3 内部无联盟边（换电门控：Tesla/比亚迪原型不入盟）
+- 回扣 P2 价值机器（单一 WACC 实现一致）· 四态裁决（含 `WIN_ALONE` 独赢群输 / `CREATE_TRAIL` 创造价值但垫底）
+- 记分尺子切换即**两图**纵轴重排 · 三动作旋钮守 ≤3 · 术语全进 `copy_cn`
+- v2：规模效应 e=0 时逐位回归 v1；长期口径自洽（资本随产量等比调整）；外溢 σ=0 时需求乘数恒为 1
+
 ## 已知事项
 
-税 bug 降级 open item（数值层、不脏 spread、偏保守，搭车下次 Phase 0 重跑修）· γ 8/10 · 前沿散点/相对排名归 Phase 3（博弈层）。详见 `PHASE2_audit_log.md` §G。
+税 bug 降级 open item（数值层、不脏 spread、偏保守，搭车下次 Phase 0 重跑修；`game.py` 已用正式式）· γ 8/10（Shanghai/Xian 待优化）· `ensure_db()` 判据建议改为「存在**且有表**」（仓库内 `nev.db` 可能为空壳）· schema 中自研分 / 换电网络 / BOM 成本链**有意未接入引擎**（17 家为表外合成企业，接入属数值层求准）。详见 `PHASE2_audit_log.md` §G、`PHASE3_audit_log.md`。
