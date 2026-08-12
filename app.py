@@ -107,7 +107,7 @@ def render_phase2(config):
                          index=_index_of(quads, _shared_get("SHARED_QUAD", quads[0])),
                          key="p2_quad", on_change=_sync("SHARED_QUAD", "p2_quad", "p3_quad"))
         st.caption(f"基准 ROE：`{config['baseline'][city]['roe_base']:+.1%}`"
-                   "　（基准财报取该城 baseline；象限只切资本成本口径 PB→WACC）")
+                   "　（基准财报取该城基线；象限只切换资本成本口径）")
         st.divider()
         price_change  = st.slider("自主定价变动 (%)", -20, 20, 0, 1,
                                   help="经 β 弹性传导到销量")

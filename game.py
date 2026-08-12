@@ -4,7 +4,7 @@ game.py · Phase 3 博弈引擎（新增·结构层主体）
 
 从「单企业独自结算（P2）」进入「多企业互搏（P3）」：
   · 图一 · 象限内博弈：同象限全国 N 家，纯竞争（Logit 份额 + Nash/Bertrand 快层价格），无联盟。
-             叙事＝【打份额 → 沉下去】。轴 = 份额 × 价值 spread。
+             叙事＝【靠降价打份额 → 你被卷入价格战漩涡、独自沉下去】。轴 = 份额 × 价值 spread。
   · 图二 · 区域/全国竞合：跨象限企业，竞合（换电联盟慢层生态）；联盟连边（Q1↔Q3 / Q1 内部）。
              叙事＝【建生态/结盟 → 浮上来】。轴 = 非价格吸引力 aᵢ × 价值 spread。
 
@@ -337,13 +337,22 @@ if __name__ == "__main__":
     you_w = next(p for p in war["points"] if p["is_user"])
     peers_w = [p for p in war["points"] if not p["is_user"]]
     frac_sink = sum(1 for p in peers_w if p["spread"] < 0) / len(peers_w)
+    n_pts = len(war["points"])
     print(f"\n[图一] 价格战（你砍价 25%）：裁决={war['verdict']['state']}")
     print(f"  你 share={you_w['share']:.3f}（↑?{you_w['share']>you_n['share']}） "
-          f"spread={you_w['spread']*100:.1f}% | 对手穿零轴={frac_sink:.0%} "
+          f"spread={you_w['spread']*100:.1f}% | 对手穿零轴={frac_sink:.0%}（对手守毛利、让份额） "
           f"份额名次={war['verdict']['share_rank']} spread名次={war['verdict']['spread_rank']} "
           f"尺子翻转={war['verdict']['ruler_flip']}")
+    # §E2（v1 修订标准）：你被卷入价格战漩涡、对手坚守利润空间，而你被打到价值利差末位。
+    # 注：原标准要求「同象限全体下沉」；实测对手在 Nash 最优反应下让份额、守毛利，
+    #     是成立的均衡，故按实测修订——判据改为「你独自沉到末位」。
     assert you_w["share"] > you_n["share"], "降价应抬升你的份额"
-    print("  ✓ 降价→份额升；价格战使群体下沉（题眼：赢销量≠赢价值）")
+    assert you_w["spread"] < you_n["spread"], "降价应压薄你的价值创造"
+    assert war["verdict"]["share_rank"] == 1, "深度价格战下你应夺得份额头名"
+    assert war["verdict"]["spread_rank"] == n_pts, "你应被打到价值利差末位"
+    assert war["verdict"]["ruler_flip"], "应触发尺子翻转（份额领跑、价值垫底）"
+    print("  ✓ 你被卷入价格战漩涡、对手坚守利润空间，而你被打到价值利差末位")
+    print("    （题眼：赢销量 ≠ 赢价值——你独自为份额买单）")
 
     c2_n = chart_two(REGION, QUAD, eco_invest=0.0, alliance_on=False)
     you2_n = next(p for p in c2_n["points"] if p["is_user"])
@@ -361,5 +370,5 @@ if __name__ == "__main__":
                                 interest_bearing_debt=20.0, cash_and_equivalents=10.0, quadrant="Q1")
     print(f"\n  ✓ 回扣真 financials（单一 WACC）：样例 spread={v['spread']*100:.1f}%")
     print("\n" + "=" * 70)
-    print("冒烟通过：图一沉/图二浮/尺子翻转/联盟边/真 financials —— 方向性全绿。")
+    print("冒烟通过：你独沉/图二浮/尺子翻转/联盟边/真 financials —— 方向性全绿。")
     print("=" * 70)
