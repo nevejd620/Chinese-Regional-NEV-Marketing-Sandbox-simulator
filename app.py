@@ -321,7 +321,9 @@ def render_phase3():
 
         price_pct = st.slider(T.SLIDER_PRICE, -30, 15, 0, step=1, key="p3_price")
         eco = st.slider(T.SLIDER_ECO, 0.0, C.ECO_SLIDER_MAX, 0.0, step=0.05, key="p3_eco")
-        ally = st.toggle(T.TOGGLE_ALLY, value=False, key="p3_ally")
+        # ③ 联盟：先出序号文字，再出开关（与上方两个滑块「标签在上、控件在下」的排版一致）
+        st.markdown(T.TOGGLE_ALLY)
+        ally = st.toggle(" ", value=False, key="p3_ally", label_visibility="collapsed")
         st.divider()
         # 记分尺子 = 图一纵轴用哪把量尺。份额已是图一横轴，不再作纵轴尺子，只留三把"值不值"的尺子。
         ruler_opts = [k for k in T.SCORER_NAMES if k != "share"]   # spread / roe / roic

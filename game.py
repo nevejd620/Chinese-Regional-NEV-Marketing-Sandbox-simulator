@@ -106,12 +106,57 @@ def build_user_firm(region, quad, price=None, eco_invest=0.0, alliance_on=False)
 # =============================================================================
 
 def logit_shares(prices, a_values, b, mid):
-    """V_i = A_BASE + aᵢ − b·(p_i/mid)；s_i = softmax(V)。"""
+    """V_i = A_BASE + aᵢ − b·(p_i/mid)；s_i = softmax(V)。（象限内，θ 分场完好，v1 原样）"""
     v = [C.A_BASE + a - b * (p / mid) for p, a in zip(prices, a_values)]
     m = max(v)
     ex = [math.exp(x - m) for x in v]                        # 数值稳定
     tot = sum(ex)
     return [e / tot for e in ex]
+
+
+# =============================================================================
+# 3b. 跨象限价格外溢（v2 · 场 A）：嵌套 Logit 的【上层】
+# =============================================================================
+# 下层（象限内）＝ logit_shares，原样不动；
+# 上层（象限间）＝ 按各象限的 inclusive value（价格指数）重新分配总需求。
+# 只用 config.SIGMA_CROSS 一个标量 + 由象限两轴派生的 cross_weight，不做交叉弹性矩阵。
+
+def _inclusive_value(prices, a_values, b, mid):
+    """象限的 logsum（inclusive value）：该象限整体对消费者有多大吸引力。
+    价格普遍下降 → IV 上升 → 该象限从别的象限吸走需求。"""
+    v = [C.A_BASE + a - b * (p / mid) for p, a in zip(prices, a_values)]
+    m = max(v)
+    return m + math.log(sum(math.exp(x - m) for x in v))
+
+
+def cross_quadrant_demand(iv_by_quad, quad, sigma=None):
+    """
+    给定各象限的 IV，返回目标象限的【需求乘数】（相对 v1 基线的倍数）。
+    σ=0 → 恒为 1.0（完全退回 v1，四缸互不相通）。
+    σ>0 → 你把价打低、IV 抬高，就从邻近象限抢来需求；反之被别人抢走。
+    邻近性用 cross_weight（复用象限两轴），对角象限影响打折。
+    """
+    sigma = C.SIGMA_CROSS if sigma is None else sigma
+    if sigma <= 0:
+        return 1.0
+    # 以各象限 IV 相对"基线 IV 均值"的偏离度，按邻近权重加权竞争
+    quads = list(iv_by_quad.keys())
+    ref = sum(iv_by_quad.values()) / len(quads)
+    num = math.exp(sigma * (iv_by_quad[quad] - ref))
+    den = sum(C.cross_weight(quad, q) * math.exp(sigma * (iv_by_quad[q] - ref))
+              for q in quads) / sum(C.cross_weight(quad, q) for q in quads)
+    return num / den if den > 0 else 1.0
+
+
+def _baseline_iv(quad):
+    """该象限在【中性基线】（各企业按 p0 定价）下的 IV —— 外溢的参照点。"""
+    firms = [build_firm(s) for s in C.firms_in_quadrant(quad)]
+    if not firms:
+        return 0.0
+    b = _quad_b(quad, len(firms))
+    mid = firms[0]["mid"]
+    return _inclusive_value([f["p0"] for f in firms],
+                            [f["a_base"] for f in firms], b, mid)
 
 
 # =============================================================================
@@ -156,12 +201,36 @@ def solve_intra_quadrant(user_firm, opponents, theta, tam, max_iter=200, tol=1e-
 # 5. 损益/资产 → spread（P3.12 回扣 P2；调用真 financials.compute_value_metrics）
 # =============================================================================
 
-def firm_financials(quad, price, cost, volume, eco_invest=0.0):
+def scaled_cost(quad, cost, volume, elasticity=None):
+    """规模经济：单位成本随【企业自身均衡产量】幂律变化（详细定义见 config.SCALE_ELASTICITY）。
+
+    · 规模 = 生产规模（本企业产量），非市场总量 —— 只有竞争性的那一面才能制造分化。
+    · 长期口径：本引擎资本随产量等比调整（assets=revenue/turnover），即所有投入可变，
+      故这是【长期平均成本曲线上的移动】（采购议价 / 产线配置 / 专业化分工），
+      **不是**短期的"摊薄固定成本"，也**不是**沿时间累积的学习曲线。
+    · 参照点 V_ref = 该象限中性基线下的单企业平均产量（TAM/N）→ 中性时 cost 不变，
+      v1 标定不被破坏，只有偏离基线才显影。
+    · elasticity 传 0 即关闭，完全退回 v1 行为。
+    """
+    e = C.SCALE_ELASTICITY if elasticity is None else elasticity
+    if e <= 0 or volume <= 0:
+        return cost
+    n = max(len(C.firms_in_quadrant(quad)) + 1, 2)      # +1 为 YOU
+    v_ref = C.QUAD_TAM[quad] / n
+    if v_ref <= 0:
+        return cost
+    b = -math.log(1.0 - e, 2)                            # 幂指数
+    return cost * (volume / v_ref) ** (-b)
+
+
+def firm_financials(quad, price, cost, volume, eco_invest=0.0, scale_elasticity=None):
     """
     (价, 成本, 量) → 合成损益 + 资产负债（真 QUAD_PROFILE 比率派生）
     → 调用真 financials.compute_value_metrics（单一 WACC）。
     生态投资吃当期 EBIT（opex↑），换未来 aᵢ——真实权衡（图二上浮的代价在这里显影）。
+    v2：单位成本先过规模经济（量大摊薄 / 量小抬升），使销量能真正影响价值。
     """
+    cost = scaled_cost(quad, cost, volume, scale_elasticity)
     revenue = price * volume
     if revenue <= 0:
         nan = float("nan")
@@ -204,11 +273,27 @@ def firm_financials(quad, price, cost, volume, eco_invest=0.0):
 # 6. 图一装配（份额 × spread）+ 四态裁决
 # =============================================================================
 
-def chart_one(region, quad, user_price=None, eco_invest=0.0):
-    """图一 · 象限内博弈：散点（含 YOU）+ 四态裁决 + 读数。"""
+def chart_one(region, quad, user_price=None, eco_invest=0.0, sigma=None):
+    """图一 · 象限内博弈：散点（含 YOU）+ 四态裁决 + 读数。
+    v2：象限总需求(TAM)不再固定——你把价打低会从邻近象限抢来需求，
+        反之别的象限降价也会把你这块蛋糕吸走（跨象限外溢，场 A）。"""
     user = build_user_firm(region, quad, price=user_price, eco_invest=eco_invest, alliance_on=False)
     opponents = [build_firm(s, in_alliance_context=False) for s in C.firms_in_quadrant(quad)]
+
+    # 第一遍：先按 v1 基线 TAM 解出象限内价格均衡
     eq = solve_intra_quadrant(user, opponents, C.THETA_Q[quad], C.QUAD_TAM[quad])
+
+    # 上层嵌套：用解出的价格算本象限 IV，与其余象限（中性基线）比，得需求乘数
+    sig = C.SIGMA_CROSS if sigma is None else sigma
+    mult = 1.0
+    if sig > 0:
+        b = _quad_b(quad, len(eq))
+        mid = user["mid"]
+        iv_now = _inclusive_value([r["price"] for r in eq], [r["a_value"] for r in eq], b, mid)
+        iv_by_quad = {q: (iv_now if q == quad else _baseline_iv(q)) for q in C.QUAD_PROFILE}
+        mult = cross_quadrant_demand(iv_by_quad, quad, sigma=sig)
+        # 第二遍：按放大/缩小后的 TAM 重解（价格加成对规模不敏感，一次回代即收敛）
+        eq = solve_intra_quadrant(user, opponents, C.THETA_Q[quad], C.QUAD_TAM[quad] * mult)
 
     points = []
     for r in eq:
@@ -219,6 +304,7 @@ def chart_one(region, quad, user_price=None, eco_invest=0.0):
                            price=r["price"], share=r["share"], a_value=r["a_value"], **fin))
 
     return dict(points=points, verdict=_verdict(points), quad=quad,
+                demand_multiplier=mult,
                 competition_type=C.COMPETITION_TYPE_MAP[quad])
 
 
@@ -251,7 +337,14 @@ def _verdict(points):
                    if you in valid else None)
 
     if you["spread"] > 0:
-        state = "CREATE"
+        # ③ v2 拆分：同为「创造价值」，"你排第几"含义天差地别。
+        # 实测（e=0.025，Q2/Q3 深度价格战）：你靠规模打赢了价格战、spread 仍为正，
+        # 但价值名次全场垫底——对手让份额、守毛利，回报比你高。
+        # 这正是「很难靠市场机制在 spread 上一骑绝尘」：可复制的手段（降价、规模）
+        # 带不来相对优势，拉开差距的是不可复制的生态位。故必须与"领先"区分。
+        n_valid = len(valid) if valid else 1
+        state = "CREATE_TRAIL" if (spread_rank is not None and
+                                   spread_rank > n_valid / 2) else "CREATE"
     elif share_rank == 1:
         state = "WIN_ALONE"
     elif frac_neg <= 0.5:
