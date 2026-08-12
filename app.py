@@ -31,6 +31,28 @@ CITY_CN = {"Shanghai": "上海", "Shenzhen": "深圳", "Hefei": "合肥",
 cn_of = lambda r: CITY_CN.get(r, r)
 
 
+# ── 城市 / 象限：P2 与 P3 共享同一份选择 ─────────────────────────────────────
+# Streamlit 不允许两个 widget 复用同一个 key，所以两边各用各的 widget key
+# （p2_city / p3_city …），再用 on_change 回调把选择同步进共享状态 SHARED_*，
+# 另一侧渲染时以共享状态为默认值 —— 达到"在哪个 tab 改，两边都跟着走"。
+def _shared_get(name, default):
+    return st.session_state.get(name, default)
+
+
+def _sync(shared_name, widget_key):
+    """widget 变化 → 写回共享状态。"""
+    def _cb():
+        st.session_state[shared_name] = st.session_state[widget_key]
+    return _cb
+
+
+def _index_of(options, value, fallback=0):
+    try:
+        return options.index(value)
+    except (ValueError, AttributeError):
+        return fallback
+
+
 def _panel(days, p05, p50, p95, prev_p50, color, rgba, y_title,
            zero_ref, zero_label, base_ref, base_label,
            this_label, prev_label):
@@ -70,13 +92,17 @@ def render_phase2(config):
     left, right = st.columns([1, 2], gap="large")
 
     with left:
-        city = st.selectbox("城市 / 选址", cities, index=0, format_func=cn_of,
-                            key="shared_city")                     # 城市：P2/P3 共享
+        quads = list(C.QUAD_PROFILE.keys())
+        city = st.selectbox("城市 / 选址", cities, format_func=cn_of,
+                            index=_index_of(cities, _shared_get("SHARED_CITY", cities[0])),
+                            key="p2_city", on_change=_sync("SHARED_CITY", "p2_city"))
         # 象限 ⊥ 城市（Phase 3 §B 冻结解耦）：象限是独立选择，不再由城市写死。
         # P2 只显示象限【名字】，不放详细介绍（详见「象限地图」tab）。
-        q = st.selectbox("战略象限", list(C.QUAD_PROFILE.keys()),
+        q = st.selectbox("战略象限", quads,
                          format_func=lambda x: T.QUAD_CELL[x]["short"],
-                         key="shared_quad")                        # 象限：P2/P3 共享
+                         index=_index_of(quads, _shared_get("SHARED_QUAD", quads[0])),
+                         key="p2_quad", on_change=_sync("SHARED_QUAD", "p2_quad"))
+        st.session_state["SHARED_CITY"], st.session_state["SHARED_QUAD"] = city, q
         st.caption(f"基准 ROE：`{config['baseline'][city]['roe_base']:+.1%}`"
                    "　（基准财报取该城 baseline；象限只切资本成本口径 PB→WACC）")
         st.divider()
@@ -251,10 +277,16 @@ def render_phase3():
 
     with c_ctrl:
         st.markdown("**控制台**")
-        # 城市 / 象限与 Phase 2 共享同一 key：在哪个 tab 改，两边同步（象限 ⊥ 城市）
-        region = st.selectbox("选址城市", cities, format_func=cn_of, key="shared_city")
-        quad = st.selectbox("战略象限", list(C.QUAD_PROFILE.keys()),
-                            format_func=lambda q: T.QUAD_CELL[q]["short"], key="shared_quad")
+        # 城市 / 象限与 Phase 2 共享同一份选择：各用各的 widget key，经回调同步（象限 ⊥ 城市）
+        quads = list(C.QUAD_PROFILE.keys())
+        region = st.selectbox("选址城市", cities, format_func=cn_of,
+                              index=_index_of(cities, _shared_get("SHARED_CITY", cities[0])),
+                              key="p3_city", on_change=_sync("SHARED_CITY", "p3_city"))
+        quad = st.selectbox("战略象限", quads,
+                            format_func=lambda q: T.QUAD_CELL[q]["short"],
+                            index=_index_of(quads, _shared_get("SHARED_QUAD", quads[0])),
+                            key="p3_quad", on_change=_sync("SHARED_QUAD", "p3_quad"))
+        st.session_state["SHARED_CITY"], st.session_state["SHARED_QUAD"] = region, quad
         price_pct = st.slider(T.SLIDER_PRICE, -30, 15, 0, step=1, key="p3_price")
         eco = st.slider(T.SLIDER_ECO, 0.0, C.ECO_SLIDER_MAX, 0.0, step=0.05, key="p3_eco")
         ally = st.toggle(T.TOGGLE_ALLY, value=False, key="p3_ally")
@@ -266,8 +298,7 @@ def render_phase3():
         with st.expander("关于 / 诚实声明"):
             st.caption(T.PROXY_NOTE_P3)
         with st.expander(T.QUAD_MAP_TITLE, expanded=False):    # P3 精简条：名字 + 打法
-            render_quadrant_map(highlight=st.session_state.get("shared_quad"),
-                                compact=True, show_play=True)
+            render_quadrant_map(highlight=quad, compact=True, show_play=True)
 
     # ── 计算 ──
     p0 = game.build_user_firm(region, quad)["p0"]
@@ -402,7 +433,7 @@ st.title("新能源汽车区域选址 · 定价博弈沙盘")
 tab_quad, tab_p2, tab_p3 = st.tabs(
     ["象限地图", "Phase 2 · 财务解剖与价值裁决", "Phase 3 · 全国定价博弈与竞合"])
 with tab_quad:
-    render_quadrant_map(highlight=st.session_state.get("shared_quad"))   # 详版 · 高亮当前象限
+    render_quadrant_map(highlight=_shared_get("SHARED_QUAD", None))   # 详版 · 高亮当前象限
 with tab_p2:
     render_phase2(config)
 with tab_p3:
