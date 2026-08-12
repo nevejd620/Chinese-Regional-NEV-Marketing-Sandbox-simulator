@@ -39,10 +39,14 @@ def _shared_get(name, default):
     return st.session_state.get(name, default)
 
 
-def _sync(shared_name, widget_key):
-    """widget 变化 → 写回共享状态。"""
+def _sync(shared_name, widget_key, peer_key):
+    """widget 变化 → 写回共享状态，并同步对侧 widget 的 key。
+    注意：Streamlit 的 tab 每次运行都会全部执行，且带 key 的 widget 会记住自己的旧值、
+    不再听 index；所以必须把新值直接推进对侧的 key，联动才真正生效。"""
     def _cb():
-        st.session_state[shared_name] = st.session_state[widget_key]
+        val = st.session_state[widget_key]
+        st.session_state[shared_name] = val
+        st.session_state[peer_key] = val
     return _cb
 
 
@@ -95,14 +99,13 @@ def render_phase2(config):
         quads = list(C.QUAD_PROFILE.keys())
         city = st.selectbox("城市 / 选址", cities, format_func=cn_of,
                             index=_index_of(cities, _shared_get("SHARED_CITY", cities[0])),
-                            key="p2_city", on_change=_sync("SHARED_CITY", "p2_city"))
+                            key="p2_city", on_change=_sync("SHARED_CITY", "p2_city", "p3_city"))
         # 象限 ⊥ 城市（Phase 3 §B 冻结解耦）：象限是独立选择，不再由城市写死。
         # P2 只显示象限【名字】，不放详细介绍（详见「象限地图」tab）。
         q = st.selectbox("战略象限", quads,
                          format_func=lambda x: T.QUAD_CELL[x]["short"],
                          index=_index_of(quads, _shared_get("SHARED_QUAD", quads[0])),
-                         key="p2_quad", on_change=_sync("SHARED_QUAD", "p2_quad"))
-        st.session_state["SHARED_CITY"], st.session_state["SHARED_QUAD"] = city, q
+                         key="p2_quad", on_change=_sync("SHARED_QUAD", "p2_quad", "p3_quad"))
         st.caption(f"基准 ROE：`{config['baseline'][city]['roe_base']:+.1%}`"
                    "　（基准财报取该城 baseline；象限只切资本成本口径 PB→WACC）")
         st.divider()
@@ -277,16 +280,27 @@ def render_phase3():
 
     with c_ctrl:
         st.markdown("**控制台**")
-        # 城市 / 象限与 Phase 2 共享同一份选择：各用各的 widget key，经回调同步（象限 ⊥ 城市）
+        # 城市：始终与 Phase 2 联动。象限：由「跟随 Phase 2」开关决定联动或独立推演。
         quads = list(C.QUAD_PROFILE.keys())
         region = st.selectbox("选址城市", cities, format_func=cn_of,
                               index=_index_of(cities, _shared_get("SHARED_CITY", cities[0])),
-                              key="p3_city", on_change=_sync("SHARED_CITY", "p3_city"))
-        quad = st.selectbox("战略象限", quads,
-                            format_func=lambda q: T.QUAD_CELL[q]["short"],
-                            index=_index_of(quads, _shared_get("SHARED_QUAD", quads[0])),
-                            key="p3_quad", on_change=_sync("SHARED_QUAD", "p3_quad"))
-        st.session_state["SHARED_CITY"], st.session_state["SHARED_QUAD"] = region, quad
+                              key="p3_city", on_change=_sync("SHARED_CITY", "p3_city", "p2_city"))
+        follow = st.toggle("象限跟随 Phase 2", value=True, key="p3_follow",
+                           help="开：与 Phase 2 用同一象限。关：P3 象限独立，可做「假如换个象限打」的推演，不影响 Phase 2。")
+        if follow:
+            # 联动：以共享象限为准，并把改动同步回 P2
+            quad = st.selectbox("战略象限", quads,
+                                format_func=lambda q: T.QUAD_CELL[q]["short"],
+                                index=_index_of(quads, _shared_get("SHARED_QUAD", quads[0])),
+                                key="p3_quad", on_change=_sync("SHARED_QUAD", "p3_quad", "p2_quad"))
+        else:
+            # 独立：单独的 widget key，不写共享状态、不碰 P2
+            quad = st.selectbox("战略象限（独立推演）", quads,
+                                format_func=lambda q: T.QUAD_CELL[q]["short"],
+                                index=_index_of(quads, _shared_get("SHARED_QUAD", quads[0])),
+                                key="p3_quad_solo")
+            st.caption(f"独立推演中：Phase 2 仍为 "
+                       f"{T.QUAD_CELL[_shared_get('SHARED_QUAD', quads[0])]['short']}，不受影响。")
         price_pct = st.slider(T.SLIDER_PRICE, -30, 15, 0, step=1, key="p3_price")
         eco = st.slider(T.SLIDER_ECO, 0.0, C.ECO_SLIDER_MAX, 0.0, step=0.05, key="p3_eco")
         ally = st.toggle(T.TOGGLE_ALLY, value=False, key="p3_ally")
