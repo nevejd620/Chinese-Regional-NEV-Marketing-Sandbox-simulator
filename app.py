@@ -30,6 +30,14 @@ CITY_CN = {"Shanghai": "上海", "Shenzhen": "深圳", "Hefei": "合肥",
            "Changzhou": "常州", "Xian": "西安", "Liuzhou": "柳州"}
 cn_of = lambda r: CITY_CN.get(r, r)
 
+# 图二散点按象限上色（上排 Premium 用暖色系、下排 Mass 用冷色系，与象限地图的行向一致）
+QUAD_COLOR = {
+    "Q1": "#8E5BD0",   # 高端 · 纯电
+    "Q2": "#C9457E",   # 高端 · 多路线
+    "Q3": "#2E8B78",   # 中低端 · 多路线
+    "Q4": "#3B7DD8",   # 中低端 · 纯电
+}
+
 
 # ── 城市 / 象限：P2 与 P3 共享同一份选择 ─────────────────────────────────────
 # Streamlit 不允许两个 widget 复用同一个 key，所以两边各用各的 widget key
@@ -361,6 +369,8 @@ def render_phase3():
         fig.update_xaxes(title_text=T.CHART1_XAXIS, tickformat=".0%", row=1, col=1)
         fig.update_yaxes(title_text=y_lab_1, row=1, col=1)
         # 图二：aᵢ × 记分尺子（与图一同一把尺）+ 联盟连边
+        # 上色规则：**颜色 = 象限**（四色可辨）；**深色描边 = 在盟**（联盟另有虚线连边表示）；
+        # 「你」保留醒目橙色 + 更大尺寸。这样一眼能看出跨象限的分布，联盟信息也没丢。
         pt_by_id = {p["firm_id"]: p for p in c2["points"]}
         for e in c2["edges"]:
             a, b = pt_by_id.get(e["a"]), pt_by_id.get(e["b"])
@@ -369,23 +379,46 @@ def render_phase3():
                     x=[a["a_value"], b["a_value"]], y=[a.get(y_key_1), b.get(y_key_1)],
                     mode="lines", line=dict(width=2, color="rgba(120,180,120,0.7)", dash="dot"),
                     hoverinfo="skip", showlegend=False), row=2, col=1)
-        x2 = [p["a_value"] for p in c2["points"]]
-        y2 = [p.get(y_key_1) for p in c2["points"]]
-        lab2 = [("你" if p["is_user"] else p["firm_id"]) for p in c2["points"]]
-        col2 = ["#e4572e" if p["is_user"] else ("#5aa469" if p["in_alliance"] else "#9aa7b4")
-                for p in c2["points"]]
-        siz2 = [26 if p["is_user"] else 14 for p in c2["points"]]
-        fig.add_trace(go.Scatter(
-            x=x2, y=y2, mode="markers+text", text=lab2, textposition="top center",
-            marker=dict(size=siz2, color=col2, line=dict(width=1, color="white")),
-            hovertext=[f"{l}｜{p['quad']}｜非价格吸引力 {p['a_value']:.2f}｜{y_lab_1} {T.fmt_pct(p.get(y_key_1))}"
-                       + ("｜在盟" if p["in_alliance"] else "")
-                       for l, p in zip(lab2, c2["points"])],
-            hoverinfo="text", showlegend=False), row=2, col=1)
+
+        def _hover(p, lab):
+            return (f"{lab}｜{p['quad']}｜非价格吸引力 {p['a_value']:.2f}"
+                    f"｜{y_lab_1} {T.fmt_pct(p.get(y_key_1))}"
+                    + ("｜在盟" if p["in_alliance"] else ""))
+
+        # 每象限一条 trace → 自动生成图例
+        for qd in ["Q1", "Q2", "Q3", "Q4"]:
+            pts = [p for p in c2["points"] if p["quad"] == qd and not p["is_user"]]
+            if not pts:
+                continue
+            fig.add_trace(go.Scatter(
+                x=[p["a_value"] for p in pts], y=[p.get(y_key_1) for p in pts],
+                mode="markers+text", text=[p["firm_id"] for p in pts],
+                textposition="top center", name=T.QUAD_CELL[qd]["short"],
+                marker=dict(size=14, color=QUAD_COLOR[qd],
+                            line=dict(width=[2.2 if p["in_alliance"] else 1 for p in pts],
+                                      color=["#3d3d3d" if p["in_alliance"] else "white"
+                                             for p in pts])),
+                hovertext=[_hover(p, p["firm_id"]) for p in pts],
+                hoverinfo="text", showlegend=True, legendgroup=qd), row=2, col=1)
+
+        you_pts = [p for p in c2["points"] if p["is_user"]]
+        if you_pts:
+            fig.add_trace(go.Scatter(
+                x=[p["a_value"] for p in you_pts], y=[p.get(y_key_1) for p in you_pts],
+                mode="markers+text", text=["你"], textposition="top center", name="你",
+                marker=dict(size=26, color="#e4572e",
+                            line=dict(width=[2.2 if p["in_alliance"] else 1 for p in you_pts],
+                                      color=["#3d3d3d" if p["in_alliance"] else "white"
+                                             for p in you_pts])),
+                hovertext=[_hover(p, "你") for p in you_pts],
+                hoverinfo="text", showlegend=True), row=2, col=1)
+
         fig.add_hline(y=0, line_dash="dot", line_color="gray", row=2, col=1)
         fig.update_xaxes(title_text=T.CHART2_XAXIS, row=2, col=1)
         fig.update_yaxes(title_text=y_lab_1, row=2, col=1)
-        fig.update_layout(height=760, margin=dict(t=60, b=40, l=60, r=30))
+        fig.update_layout(height=760, margin=dict(t=60, b=40, l=60, r=30),
+                          legend=dict(orientation="h", yanchor="top", y=-0.06,
+                                      xanchor="center", x=0.5))
         st.plotly_chart(fig, use_container_width=True)
         st.caption(f"{T.CHART1_SUB}　|　{T.CHART2_SUB}")
 
