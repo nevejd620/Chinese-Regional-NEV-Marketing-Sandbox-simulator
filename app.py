@@ -301,6 +301,24 @@ def render_phase3():
                                 key="p3_quad_solo")
             st.caption(f"独立推演中：Phase 2 仍为 "
                        f"{T.QUAD_CELL[_shared_get('SHARED_QUAD', quads[0])]['short']}，不受影响。")
+        # ── 形态三 · 预设战略快捷入口（v2）──────────────────────────────
+        # 只替用户拨已有的三个旋钮，不新增旋钮、不碰引擎。
+        # 必须在三个滑块渲染【之前】写入 session_state，否则本次运行的 widget 值已锁定。
+        with st.expander(T.PRESET_TITLE, expanded=False):
+            st.caption(T.PRESET_HINT)
+            for _pid, _p in T.PRESET_STRATEGIES.items():
+                if st.button(_p["name"], key=f"p3_preset_{_pid}", use_container_width=True):
+                    st.session_state["p3_price"] = _p["knobs"]["price"]
+                    st.session_state["p3_eco"] = _p["knobs"]["eco"]
+                    st.session_state["p3_ally"] = _p["knobs"]["ally"]
+                    st.session_state["p3_preset_active"] = _pid
+                    st.rerun()                       # 立刻以新旋钮值重绘
+                st.caption(_p["desc"])
+            _act = st.session_state.get("p3_preset_active")
+            if _act:
+                st.caption(f"当前预设：**{T.PRESET_STRATEGIES[_act]['name']}**"
+                           "（继续拨旋钮即可自由微调）")
+
         price_pct = st.slider(T.SLIDER_PRICE, -30, 15, 0, step=1, key="p3_price")
         eco = st.slider(T.SLIDER_ECO, 0.0, C.ECO_SLIDER_MAX, 0.0, step=0.05, key="p3_eco")
         ally = st.toggle(T.TOGGLE_ALLY, value=False, key="p3_ally")
