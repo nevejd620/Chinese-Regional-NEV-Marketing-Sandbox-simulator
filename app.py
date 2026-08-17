@@ -9,6 +9,9 @@ Phase 4 归并版：原「Phase 2 财务解剖」与「Phase 3 定价博弈」�
 - 原 P2「需求侧位移(demand_shift)」由 P3「生态投资」**正式接管**
   （闭合 PHASE1_audit_log §G4 挂了两阶段的 open item）。
 - 原 P3「象限跟随 Phase 2」开关**删除**：一页只有一个象限选择器，天然同步。
+- **城市 ⊥ 象限解耦**（Phase 3 §B 冻结）在 UI 上原样保持：城市不决定象限，
+  两个选择器互不联动。`baseline[city]["quadrant"]` 只是该城基线企业碰巧所处的
+  象限（数值层的一条记录），**不是城市的属性**，不得用它驱动界面行为。
 - 「碳酸锂价格冲击」更名「关键原材料价格冲击（锂价冲击）」：通用名主标签 + NEV 别名进括号，
   落实宪章 §5 唯一红线（基座只认通用名）。它是**外生环境**、不是你的动作，故移出动作组。
 - 控制台分两组：**我的动作**（定价 / 生态投资 / 联盟，守 ≤3）与
@@ -61,28 +64,6 @@ def _t(name, default):
     """文案取自 copy_cn；本次归并新增的几条若 copy_cn 尚未补，先用内置默认值兜底。
     （宪章 §6：一切人话最终都应落进 copy_cn.py，这里只是过渡兜底，不是第二文案层。）"""
     return getattr(T, name, default)
-
-
-def _home_quadrant(city):
-    """该城市在 nev.db 基线里所属的象限（图 A 的 β/成长阶段就锚在它上面）。"""
-    return config["baseline"].get(city, {}).get("quadrant")
-
-
-def _follow_city():
-    """换城市 → 象限默认跟到该城的本位象限（用户仍可自行改成别的做推演）。
-    默认状态下两台引擎的价格起点因此天然对齐（实测比值 0.86–1.03）；
-    也让「选址禀赋 → 象限战略」这条因果链在界面上真的显出来：
-    城市不是筛选器，它带着一份禀赋和一个默认定位。"""
-    hq = _home_quadrant(st.session_state.get("k_city"))
-    if hq:
-        st.session_state["k_quad"] = hq
-
-
-# 首次进入：象限落在首个城市的本位象限上（必须在 widget 渲染前写 session_state）
-if "k_quad" not in st.session_state:
-    _hq0 = _home_quadrant(cities[0])
-    if _hq0:
-        st.session_state["k_quad"] = _hq0
 
 
 def _index_of(options, value, fallback=0):
@@ -229,14 +210,11 @@ def render_console():
     e1, e2, e3, e4 = st.columns([1.2, 1.4, 2, 2], gap="large")
     with e1:
         city = st.selectbox("城市 / 选址", cities, format_func=cn_of, key="k_city",
-                            on_change=_follow_city, help=_t("HELP_CITY", ""))
+                            help=_t("HELP_CITY", ""))
     with e2:
         quad = st.selectbox("战略象限", quads,
                             format_func=lambda x: T.QUAD_CELL[x]["short"], key="k_quad",
                             help=_t("HELP_QUAD", ""))
-        _hq = _home_quadrant(city)
-        if _hq and quad != _hq and _t("QUAD_OFF_HOME", ""):
-            st.caption(_t("QUAD_OFF_HOME", "").format(home=T.QUAD_CELL[_hq]["short"]))
     with e3:
         shock = st.slider(_t("SLIDER_SHOCK", "关键原材料价格冲击（锂价冲击）%"),
                           -30, 60, 0, step=5, key="k_shock",
