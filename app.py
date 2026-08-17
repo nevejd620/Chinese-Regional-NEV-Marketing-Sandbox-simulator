@@ -63,6 +63,28 @@ def _t(name, default):
     return getattr(T, name, default)
 
 
+def _home_quadrant(city):
+    """该城市在 nev.db 基线里所属的象限（图 A 的 β/成长阶段就锚在它上面）。"""
+    return config["baseline"].get(city, {}).get("quadrant")
+
+
+def _follow_city():
+    """换城市 → 象限默认跟到该城的本位象限（用户仍可自行改成别的做推演）。
+    默认状态下两台引擎的价格起点因此天然对齐（实测比值 0.86–1.03）；
+    也让「选址禀赋 → 象限战略」这条因果链在界面上真的显出来：
+    城市不是筛选器，它带着一份禀赋和一个默认定位。"""
+    hq = _home_quadrant(st.session_state.get("k_city"))
+    if hq:
+        st.session_state["k_quad"] = hq
+
+
+# 首次进入：象限落在首个城市的本位象限上（必须在 widget 渲染前写 session_state）
+if "k_quad" not in st.session_state:
+    _hq0 = _home_quadrant(cities[0])
+    if _hq0:
+        st.session_state["k_quad"] = _hq0
+
+
 def _index_of(options, value, fallback=0):
     try:
         return options.index(value)
@@ -117,7 +139,8 @@ def _fig_arena(c1, y_key, y_lab):
     fig.add_trace(go.Scatter(
         x=xs, y=ys, mode="markers+text", text=labels, textposition="top center",
         marker=dict(size=sizes, color=colors, line=dict(width=1, color="white")),
-        hovertext=[f"{l}｜份额 {p['share']:.0%}｜{y_lab} {T.fmt_pct(p.get(y_key))}"
+        hovertext=[f"{l}｜售价 {p['price']/1e4:.1f}万｜份额 {p['share']:.0%}"
+                   f"｜{y_lab} {T.fmt_pct(p.get(y_key))}"
                    for l, p in zip(labels, c1["points"])],
         hoverinfo="text", showlegend=False))
     fig.add_hline(y=0, line=dict(color="#C0392B", dash="dash"),
@@ -193,13 +216,10 @@ def render_console():
     a1, a2, a3 = st.columns([2, 2, 1], gap="large")
     with a1:
         price_pct = st.slider(T.SLIDER_PRICE, PRICE_RANGE[0], PRICE_RANGE[1], 0, step=1,
-                              key="k_price",
-                              help="经 β 弹性传导到销量；同一根滑块同时驱动"
-                                   "「我的价值」与「象限内博弈」，不再分家")
+                              key="k_price", help=_t("HELP_PRICE", ""))
     with a2:
         eco = st.slider(T.SLIDER_ECO, 0.0, C.ECO_SLIDER_MAX, 0.0, step=0.05, key="k_eco",
-                        help="慢层生态投资抬非价格吸引力；同时作为需求侧位移驱动价值线"
-                             "（原「需求侧位移」滑块由它正式接管）")
+                        help=_t("HELP_ECO", ""))
     with a3:
         st.markdown(T.TOGGLE_ALLY)
         ally = st.toggle(" ", value=False, key="k_ally", label_visibility="collapsed")
@@ -208,16 +228,19 @@ def render_console():
                 f"　:gray[{_t('CONSOLE_ENV_HINT', '（不是你的动作：牌面是给定的，冲击是外生的）')}]")
     e1, e2, e3, e4 = st.columns([1.2, 1.4, 2, 2], gap="large")
     with e1:
-        city = st.selectbox("城市 / 选址", cities, format_func=cn_of, key="k_city")
+        city = st.selectbox("城市 / 选址", cities, format_func=cn_of, key="k_city",
+                            on_change=_follow_city, help=_t("HELP_CITY", ""))
     with e2:
         quad = st.selectbox("战略象限", quads,
                             format_func=lambda x: T.QUAD_CELL[x]["short"], key="k_quad",
-                            help="这是**你的战略定位**：它决定你的价格弹性、毛利结构与资本成本，"
-                                 "同时也决定你在哪个象限竞技场里博弈（象限内竞争，你必在自己象限）")
+                            help=_t("HELP_QUAD", ""))
+        _hq = _home_quadrant(city)
+        if _hq and quad != _hq and _t("QUAD_OFF_HOME", ""):
+            st.caption(_t("QUAD_OFF_HOME", "").format(home=T.QUAD_CELL[_hq]["short"]))
     with e3:
-        shock = st.slider(_t("SLIDER_SHOCK", "关键原材料价格冲击（锂价冲击）(%)"),
+        shock = st.slider(_t("SLIDER_SHOCK", "关键原材料价格冲击（锂价冲击）%"),
                           -30, 60, 0, step=5, key="k_shock",
-                          help="外生冲击，经 γ 成本传导到单位成本，按半衰期衰减")
+                          help=_t("HELP_SHOCK", ""))
     with e4:
         # 记分尺子 = 纵轴用哪把量尺。份额已是图 B 横轴，不再作纵轴尺子。
         ruler_opts = [k for k in T.SCORER_NAMES if k != "share"]
@@ -274,6 +297,8 @@ def render_self(k):
     prev = st.session_state.get(skey)
 
     st.markdown(f"#### {_t('SEC_A_TITLE', 'A · 你自己：账面赚不赚，价值创没创造')}")
+    if _t("SEC_A_SUB", ""):
+        st.caption(_t("SEC_A_SUB", ""))
     st.caption(f"基准 ROE：`{config['baseline'][city]['roe_base']:+.1%}`"
                "　（基准财报取该城基线；象限只切换资本成本口径）")
 
@@ -359,7 +384,7 @@ def render_game(k):
     """原 Phase 3：图 B 象限内竞争 / 图 C 跨象限竞合，并排。返回读数包（供简报）。"""
     city, quad, scorer = k["city"], k["quad"], k["scorer"]
     st.markdown(f"#### {_t('SEC_B_TITLE', 'B · 你和对手：打价格战，还是结生态')}")
-    st.caption(T.P3_INTRO)
+    st.caption(f"{T.P3_INTRO}　{_t('SEC_B_SUB', '')}")
 
     p0 = game.build_user_firm(city, quad)["p0"]
     user_price = p0 * (1.0 + k["price_pct"] / 100.0)
@@ -387,9 +412,9 @@ def render_game(k):
     r2 = T.READOUT_C2.format(a=you2["a_value"], spread=T.fmt_pct(you2.get(scorer)),
                              ally=(T.READOUT_ALLY if k["ally"] else ""))
     col_a, col_b = st.columns(2)
-    col_a.markdown("**图 B 读数 · 象限内竞争**"); col_a.write(r1)
+    col_a.markdown(f"**{_t('READOUT_TITLE_C1', '图 B 读数 · 象限内竞争')}**"); col_a.write(r1)
     col_a.caption(f"竞争类型：{T.COMPETITION_CN[c1['competition_type']]}（θ={C.THETA_Q[quad]}）")
-    col_b.markdown("**图 C 读数 · 区域/全国竞合**"); col_b.write(r2)
+    col_b.markdown(f"**{_t('READOUT_TITLE_C2', '图 C 读数 · 区域 / 全国竞合')}**"); col_b.write(r2)
 
     return dict(verdict=v, share=you1["share"], spread_game=you1["spread"],
                 a_value=you2["a_value"], in_alliance=you2["in_alliance"],
@@ -485,10 +510,7 @@ def render_sandbox():
 
     # ── 总裁办简报（Phase 4 · 待建）──
     st.markdown(f"#### {_t('SEC_C_TITLE', 'C · 总裁办简报')}")
-    st.info(_t("BRIEF_PLACEHOLDER",
-               "Phase 4 建设中：这里会由你刚才的动作触发，生成一份"
-               "「引擎读数复述 + 战略解释」的简报，并可导出 docx。"
-               "数字一律来自上方引擎，LLM 只组织措辞。"))
+    st.info(_t("BRIEF_PLACEHOLDER", "Phase 4 建设中：简报区。"))
 
     st.divider()
     render_appendix(k["quad"])

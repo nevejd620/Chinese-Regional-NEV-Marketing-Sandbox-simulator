@@ -59,7 +59,7 @@ def _unit_econ(quad, pos, region):
     prof = C.QUAD_PROFILE[quad]
     asp_lo, asp_hi = prof["asp"]
     m_lo, m_hi = prof["margin"]
-    p0 = asp_lo + pos * (asp_hi - asp_lo)                     # 基线价（k RMB）
+    p0 = asp_lo + pos * (asp_hi - asp_lo)                     # 基线价（元）
     margin = m_lo + pos * (m_hi - m_lo)                       # 高定位→高毛利
     relief = 1.0 - C.COST_RELIEF * (C.cluster(region) - 0.5)
     cost = p0 * (1.0 - margin) * relief
