@@ -1,6 +1,26 @@
-pandas>=2.2
+# NEV 沙盘 · 依赖清单
+# 复现：python calibration.py → streamlit run app.py
+
+# ── Phase 0–1 · 数据地基与引擎 ──────────────────────────────
+pandas>=2.2          # groupby().apply(include_groups=False) 需 ≥2.2
 numpy
-statsmodels
+statsmodels          # OLS 恢复 β / γ
+
+# ── Phase 2 · 财务解剖 ─────────────────────────────────────
+scipy                # delta method 的协方差传播
+
+# ── Phase 1–3 · 展示层 ─────────────────────────────────────
 plotly
 streamlit
-scipy
+
+# ── Phase 4 · 生成式简报（RAG）──────────────────────────────
+# openai：仅作 SDK 使用。国内平台（智谱 / 阿里云百炼 / 腾讯混元 / 百度千帆）
+#   均提供 OpenAI 兼容接口，供应商由 config.LLM_BASE_URL 决定，换厂商不改代码。
+#   构建期用它调 embedding（作者本地跑一次），运行期用它调 generation（用户自带 key）。
+openai>=1.0
+# python-docx：简报导出 Word。注意 import 名是 docx，包名是 python-docx。
+python-docx>=1.1
+
+# 说明：运行期【不】依赖 sentence-transformers / faiss / chromadb 等向量栈 ——
+# 语料与 query 的向量已在构建期算好，随仓库走（corpus/vecs.npz），
+# 线上只做一次矩阵点积。Cloud 内存零压力，冷启动不下载模型。
