@@ -28,14 +28,32 @@ import numpy as np
 
 import triggers as TG
 
+try:
+    import copy_cn as T                      # 一切人话仍归 copy_cn（宪章 §6）
+except ImportError:                          # 允许脱离仓库单独冒烟
+    T = None
+
+
+def _T(name, default):
+    return getattr(T, name, default) if T else default
+
 ROOT = Path(__file__).resolve().parent
 CHUNKS_PATH = ROOT / "corpus" / "chunks.jsonl"
 VECS_PATH = ROOT / "corpus" / "vecs.npz"
 CACHE_DIR = ROOT / "cache"
 
-TOP_K = 3
-BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
-MODEL = "glm-4-flash"
+# 供应商与检索参数统一从 config 读（换厂商只改 config.py 三行，本文件不动）
+try:
+    import config as C
+    TOP_K = getattr(C, "RAG_TOP_K", 3)
+    BASE_URL = getattr(C, "LLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4")
+    MODEL = getattr(C, "LLM_MODEL", "glm-4-flash")
+    TEMPERATURE = getattr(C, "LLM_TEMPERATURE", 0.6)
+    MAX_TOKENS = getattr(C, "LLM_MAX_TOKENS", 2000)
+    TIMEOUT_S = getattr(C, "LLM_TIMEOUT_S", 60)
+except ImportError:                       # 允许脱离仓库单独冒烟
+    TOP_K, TEMPERATURE, MAX_TOKENS, TIMEOUT_S = 3, 0.6, 2000, 60
+    BASE_URL, MODEL = "https://open.bigmodel.cn/api/paas/v4", "glm-4-flash"
 
 
 # ══════════════════════════════════════════════════════════════
@@ -109,7 +127,7 @@ class Readout:
         return {
             "城市": self.city_cn or self.city,
             "象限": self.quad_cn or self.quad,
-            "裁决态": self.verdict_state,
+            "裁决态": _T("STATE_CN", {}).get(self.verdict_state, self.verdict_state),
             "定价动作": _band(self.price_pct, [-20, -8, -1, 1, 8],
                               ["大幅下调", "明显下调", "小幅下调", "维持不变",
                                "小幅上调", "明显上调"]),
@@ -288,9 +306,9 @@ def generate(labels: dict, docs: dict, api_key: str) -> tuple[dict, str]:
     except ImportError:
         return {}, "缺少依赖：pip install openai"
     try:
-        cli = OpenAI(api_key=api_key, base_url=BASE_URL)
+        cli = OpenAI(api_key=api_key, base_url=BASE_URL, timeout=TIMEOUT_S)
         r = cli.chat.completions.create(
-            model=MODEL, temperature=0.6, max_tokens=2000,
+            model=MODEL, temperature=TEMPERATURE, max_tokens=MAX_TOKENS,
             messages=[{"role": "system", "content": _SYSTEM},
                       {"role": "user", "content": _prompt(labels, docs)}])
         txt = r.choices[0].message.content.strip()
@@ -374,6 +392,21 @@ def dupont_rows(r: Readout) -> list[tuple]:
             ("权益乘数", v["equity_multiplier"], "自有资金撬动了多少总资产")]
 
 
+def table_leads(r: Readout) -> dict:
+    """两张表的引导叙述。纯模板 + 定性标签，零 LLM 参与、零编造风险。
+    报告惯例：先叙述、再引「（见表 N）」、最后出表 —— 表格是论据，不替代论述。"""
+    lab = r.labels()
+    ref = _T("BRIEF_TABLE_REF", {"action": "（见表 1）", "dupont": "（见表 2）"})
+    lead_a = _T("BRIEF_LEAD_ACTION", "")
+    lead_d = _T("BRIEF_LEAD_DUPONT", "")
+    return {
+        "action": lead_a.format(price_lab=lab["定价动作"], eco_lab=lab["生态投资"],
+                                ally_lab=lab["换电联盟"], shock_lab=lab["原材料冲击"],
+                                ref=ref["action"]) if lead_a else "",
+        "dupont": lead_d.format(ref=ref["dupont"]) if lead_d else "",
+    }
+
+
 def fallback_slots(r: Readout) -> dict:
     """降级模板：无 key、调用失败、或某段被对账清空时使用。纯模板，不含推断。"""
     lab = r.labels()
@@ -415,6 +448,7 @@ def build(readout: Readout, api_key: str = "") -> dict:
              for v in TG.VIEWS for c in docs.get(v, [])]
     return dict(trigger_key=tk, mode=mode, error=err, slots=slots,
                 values=readout.values(), labels=readout.labels(),
+                leads=table_leads(readout),
                 action_rows=action_rows(readout), dupont_rows=dupont_rows(readout),
                 cites=cites, dropped=drops,
                 verdict=readout.verdict_sentence, readout=asdict(readout))
@@ -472,19 +506,46 @@ def _para(doc, text, size=12, bold=False, level=0, latin="Calibri"):
     return p
 
 
-def _table(doc, headers, rows, widths=None):
-    from docx.shared import Pt, Cm
+def _caption(doc, text):
+    """表格题注，置于表格【上方】（报告惯例：表题在上、图题在下）。"""
+    from docx.shared import Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
+    p = doc.add_paragraph()
+    pf = p.paragraph_format
+    pf.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    pf.space_before, pf.space_after = Pt(6), Pt(3)
+    pf.line_spacing_rule = WD_LINE_SPACING.SINGLE
+    _font(p.add_run(text), 10.5, bold=True, latin="Arial")
+    return p
+
+
+def _cell(cell, text, size=10.5, bold=False):
+    """单元格内容：水平居中 + 垂直居中。"""
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_ALIGN_VERTICAL
+    cell.text = ""
+    cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    para = cell.paragraphs[0]
+    para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    para.paragraph_format.space_before = para.paragraph_format.space_after = None
+    _font(para.add_run(str(text)), size, bold=bold, latin="Arial")
+
+
+def _table(doc, headers, rows, widths=None, caption=None):
+    from docx.shared import Cm
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    if caption:
+        _caption(doc, caption)
     t = doc.add_table(rows=1, cols=len(headers))
     t.style = "Table Grid"
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    t.autofit = False
     for i, h in enumerate(headers):
-        cell = t.rows[0].cells[i]
-        cell.text = ""
-        _font(cell.paragraphs[0].add_run(h), 10.5, bold=True, latin="Arial")
+        _cell(t.rows[0].cells[i], h, bold=True)
     for r in rows:
         cells = t.add_row().cells
         for i, val in enumerate(r):
-            cells[i].text = ""
-            _font(cells[i].paragraphs[0].add_run(str(val)), 10.5, latin="Arial")
+            _cell(cells[i], val)
     if widths:
         for row in t.rows:
             for i, w in enumerate(widths):
@@ -503,33 +564,57 @@ def to_docx(rep: dict, path: str | Path) -> Path:
         sec.top_margin = sec.bottom_margin = Pt(56)
         sec.left_margin = sec.right_margin = Pt(56)
 
-    _para(doc, "总裁办简报 · 区域选址与定价博弈", 16, True, level=1, latin="Arial")
-    _para(doc, f"{v['city']}　|　{v['quad']}　|　记分尺子：{v['ruler']}",
+    H1 = _T("BRIEF_H1", {"summary": "一、本轮摘要", "action": "二、本局行动分析",
+                         "strategy": "三、策略分析", "conclusion": "四、总结"})
+    H2 = _T("BRIEF_H2", {"action_rows": "2.1 逐项动作与影响",
+                         "dupont": "2.2 账面影响（杜邦分析）",
+                         "combined": "2.3 综合分析",
+                         "policy_view": "3.1 政策与区位视角",
+                         "compete_view": "3.2 竞争与生态视角"})
+    CAP = _T("BRIEF_TABLE_CAPTION", {"action": "表 1　本轮动作及其影响",
+                                     "dupont": "表 2　账面结构的三因子拆解"})
+    leads = rep.get("leads", {})
+
+    _para(doc, _T("BRIEF_DOC_TITLE", "沙盘模拟下新能源汽车企业动态决策的商业分析"),
+          16, True, level=1, latin="Arial")
+    _para(doc, _T("BRIEF_DOC_SUBTITLE",
+                  "城市选址：{city}　|　企业特征：{quad}　|　评判指标：{ruler}")
+          .format(city=v["city"], quad=v["quad"], ruler=v["ruler"]),
           10.5, level=3, latin="Arial")
 
-    _para(doc, "一、本轮摘要", 16, True, level=1, latin="Arial")
+    _para(doc, H1["summary"], 16, True, level=1, latin="Arial")
     _para(doc, s["summary"])
 
-    _para(doc, "二、本局行动分析", 16, True, level=1, latin="Arial")
-    _para(doc, "2.1 逐项动作与影响", 14, True, level=2, latin="Arial")
-    _table(doc, ["动作", "本轮取值", "对账面的影响", "对价值与博弈的影响"],
-           rep["action_rows"], widths=[2.4, 2.0, 5.4, 5.4])
-    _para(doc, "2.2 账面结构（杜邦拆解）", 14, True, level=2, latin="Arial")
-    _table(doc, ["因子", "取值", "人话"], rep["dupont_rows"], widths=[2.6, 2.4, 10.2])
-    _para(doc, "2.3 综合分析", 14, True, level=2, latin="Arial")
+    _para(doc, H1["action"], 16, True, level=1, latin="Arial")
+    _para(doc, H2["action_rows"], 14, True, level=2, latin="Arial")
+    if leads.get("action"):
+        _para(doc, leads["action"])                 # 先叙述，再出表
+    _table(doc, _T("BRIEF_TABLE_ACTION",
+                   ["动作", "本轮取值", "对账面的影响", "对价值与博弈的影响"]),
+           rep["action_rows"], widths=[2.4, 2.0, 5.4, 5.4], caption=CAP["action"])
+
+    _para(doc, H2["dupont"], 14, True, level=2, latin="Arial")
+    if leads.get("dupont"):
+        _para(doc, leads["dupont"])
+    _table(doc, _T("BRIEF_TABLE_DUPONT", ["因子", "取值", "术语解释"]),
+           rep["dupont_rows"], widths=[2.6, 2.4, 10.2], caption=CAP["dupont"])
+
+    _para(doc, H2["combined"], 14, True, level=2, latin="Arial")
     _para(doc, s["combined"])
 
-    _para(doc, "三、策略分析", 16, True, level=1, latin="Arial")
-    _para(doc, "3.1 政策与区位视角", 14, True, level=2, latin="Arial")
+    _para(doc, H1["strategy"], 16, True, level=1, latin="Arial")
+    _para(doc, H2["policy_view"], 14, True, level=2, latin="Arial")
     _para(doc, s["policy_view"])
-    _para(doc, "3.2 竞争与生态视角", 14, True, level=2, latin="Arial")
+    _para(doc, H2["compete_view"], 14, True, level=2, latin="Arial")
     _para(doc, s["compete_view"])
 
-    _para(doc, "四、总结", 16, True, level=1, latin="Arial")
+    _para(doc, H1["conclusion"], 16, True, level=1, latin="Arial")
     _para(doc, s["conclusion"])
 
+    # ── 引用材料：另起一页 ──
     if rep["cites"]:
-        _para(doc, "引用材料", 14, True, level=2, latin="Arial")
+        doc.add_page_break()
+        _para(doc, _T("BRIEF_CITE_TITLE", "引用材料"), 16, True, level=1, latin="Arial")
         seen = []
         for c in rep["cites"]:
             for x in c["sources"]:
@@ -538,9 +623,10 @@ def to_docx(rep: dict, path: str | Path) -> Path:
         for i, x in enumerate(seen, 1):
             _para(doc, f"[{i}] {x}", 9, level=3, latin="Arial")
 
-    _para(doc, "本简报中的全部数值均由确定性引擎计算并直接填入，"
-               "语言模型仅负责组织措辞、不参与任何计算。"
-               "本模型为简化教学与娱乐用途，非真实预测。",
+    _para(doc, _T("BRIEF_DISCLAIMER",
+                  "本简报中的全部数值均由确定性引擎计算并直接填入，"
+                  "语言模型仅负责组织措辞、不参与任何计算。"
+                  "本模型为简化教学与娱乐用途，非真实预测。"),
           9, level=3, latin="Arial")
 
     path = Path(path)
