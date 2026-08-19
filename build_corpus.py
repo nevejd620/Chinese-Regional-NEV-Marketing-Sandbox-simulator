@@ -39,6 +39,24 @@ VECS_PATH = CORPUS_DIR / "vecs.npz"
 # 视角 → 语料文件。检索时按视角隔离，保证两个视角取回不重复的材料。
 VIEW_FILES = {"policy": "policy.md", "strategy": "strategy.md"}
 
+# 标题 → 结构化锚点。检索时"元数据优先、语义补位"就靠这三个字段。
+CITY_CN2EN = {"合肥": "Hefei", "深圳": "Shenzhen", "上海": "Shanghai",
+              "常州": "Changzhou", "西安": "Xian", "柳州": "Liuzhou"}
+
+
+def _anchors(title: str) -> dict:
+    """从 `##` 标题解析锚点：
+       policy   「合肥：…」→ city=Hefei；无城市前缀者为全国性材料 city=None
+       strategy 「WIN_ALONE：…」→ state；「Q4 …：…」→ quad
+    """
+    head = title.split("：", 1)[0].split(":", 1)[0].strip()
+    city = CITY_CN2EN.get(head[:2])
+    # 按长度降序：否则 "CREATE_TRAIL" 会先被 "CREATE" 前缀匹配掉
+    state = next((k for k in sorted(TG.STATES, key=len, reverse=True)
+                  if head.startswith(k)), None)
+    quad = next((q for q in TG.QUADRANTS if head.startswith(q)), None)
+    return {"city": city, "state": state, "quad": quad}
+
 # 供应商配置：与 config.py 末尾追加的三个常量保持一致（换厂商只改这里/那里）
 BASE_URL = os.getenv("LLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "embedding-3")
@@ -83,6 +101,7 @@ def _split_md(text: str, view: str, fname: str) -> list[dict]:
             "title": c["title"],
             "body": body,
             "sources": c["sources"],
+            **_anchors(c["title"]),                    # city / state / quad 锚点
             # 送进向量空间的文本 = 标题 + 正文
             "embed_text": f"{c['title']}。{body}",
         })
@@ -123,6 +142,20 @@ def audit_chunks(chunks: list[dict]) -> None:
             print(f"  ⚠ {c['id']} {c['title'][:26]} → {'、'.join(flags)}")
     print(f"  {len(chunks)} 条，{warn} 条待留意"
           f"（偏长会挤占提示词；数字多会与引擎读数抢镜）")
+
+    print("\n── 锚点覆盖 ──")
+    pol = [c for c in chunks if c["view"] == "policy"]
+    for city in TG.CITIES:
+        n = sum(1 for c in pol if c["city"] == city)
+        print(f"  {city:<10} {n} 条" + ("   ⚠ 该城无专属材料" if n == 0 else ""))
+    print(f"  全国性（无城市） {sum(1 for c in pol if not c['city'])} 条")
+    stg = [c for c in chunks if c["view"] == "strategy"]
+    miss_s = [k for k in TG.STATES if not any(c["state"] == k for c in stg)]
+    miss_q = [q for q in TG.QUADRANTS if not any(c["quad"] == q for c in stg)]
+    print(f"  裁决态锚点 {len(TG.STATES) - len(miss_s)}/{len(TG.STATES)}"
+          + (f"   ⚠ 缺 {miss_s}" if miss_s else ""))
+    print(f"  象限锚点   {len(TG.QUADRANTS) - len(miss_q)}/{len(TG.QUADRANTS)}"
+          + (f"   ⚠ 缺 {miss_q}" if miss_q else ""))
 
 
 # ══════════════════════════ 2. 嵌入 ══════════════════════════
@@ -177,57 +210,98 @@ def save(chunks: list[dict], cvecs: np.ndarray,
           f" · {VECS_PATH.name}（{cvecs.shape} + {qvecs.shape}）")
 
 
-# ══════════════════════════ 4. 诊断 ══════════════════════════
+# ══════════════ 4. 检索（与 brief.py 同一套判据，此处仅用于诊断）══════════════
+def _pick_policy(chunks, cvecs, qvec, city, k):
+    """政策：先锚定 1 条该城专属材料，再由相似度从「该城 + 全国性」池中补足。
+    v1 只按相似度选，结果是泛化性强的切片成为枢纽、把城市专属材料全挤掉。"""
+    rows = [i for i, c in enumerate(chunks)
+            if c["view"] == "policy" and c["city"] in (city, None)]
+    own = [i for i in rows if chunks[i]["city"] == city]
+    sims = {i: float(cvecs[i] @ qvec) for i in rows}
+    out = []
+    if own:
+        out.append(max(own, key=lambda i: sims[i]))
+    for i in sorted(rows, key=lambda i: -sims[i]):
+        if len(out) >= k:
+            break
+        if i not in out:
+            out.append(i)
+    return out[:k]
+
+
+def _pick_strategy(chunks, cvecs, qvec, quad, state, k):
+    """战略：strategy.md 的 9 条 = 5 裁决态 + 4 象限，与 trigger 两维一一对应，
+    故直接【锚定】你的裁决态与象限两条，再用相似度补第三条。
+    结构化元数据优先、语义检索补位 —— 比纯相似度可控且可审计。"""
+    rows = [i for i, c in enumerate(chunks) if c["view"] == "strategy"]
+    out = []
+    for key, val in (("state", state), ("quad", quad)):
+        hit = next((i for i in rows if chunks[i][key] == val), None)
+        if hit is not None and hit not in out:
+            out.append(hit)
+    sims = {i: float(cvecs[i] @ qvec) for i in rows}
+    for i in sorted(rows, key=lambda i: -sims[i]):
+        if len(out) >= k:
+            break
+        if i not in out:
+            out.append(i)
+    return out[:k]
+
+
 def diagnose(chunks: list[dict], cvecs: np.ndarray,
              qkeys: list[str], qvecs: np.ndarray) -> None:
-    """有效分辨率诊断：20 格是否真的检索出 20 组不同材料，两个视角是否重合。"""
-    idx_by_view = {v: [i for i, c in enumerate(chunks) if c["view"] == v]
-                   for v in VIEW_FILES}
+    """诊断：城市×象限×裁决态的实际检索结果、分辨率、视角隔离、语料利用率。"""
     qpos = {k: i for i, k in enumerate(qkeys)}
     title = {i: chunks[i]["title"] for i in range(len(chunks))}
-
-    def topk(key, view):
-        rows = idx_by_view[view]
-        sims = cvecs[rows] @ qvecs[qpos[f"{key}::{view}"]]
-        order = np.argsort(-sims)[:TOP_K]
-        return [rows[o] for o in order]
 
     print("\n" + "=" * 62)
     print("检索诊断（每格 policy 3 条 + strategy 3 条）")
     print("=" * 62)
 
-    sigs, overlaps = [], 0
-    for q in TG.QUADRANTS:
-        for s in TG.STATES:
-            key = f"{q}|{s}"
-            p, t = topk(key, "policy"), topk(key, "strategy")
-            sigs.append(tuple(sorted(p + t)))
-            if set(p) & set(t):
-                overlaps += 1
-            print(f"\n[{key}]")
-            print(f"   政策 · {' ／ '.join(title[i][:20] for i in p)}")
-            print(f"   战略 · {' ／ '.join(title[i][:20] for i in t)}")
+    sigs, overlaps, used = [], 0, set()
+    state_hit = 0
+    combos = [(c, q, s) for c in TG.CITIES for q in TG.QUADRANTS for s in TG.STATES]
+    for city, quad, state in combos:
+        pv = qvecs[qpos[f"policy::{TG.policy_key(city, state)}"]]
+        sv = qvecs[qpos[f"strategy::{TG.strategy_key(quad, state)}"]]
+        p = _pick_policy(chunks, cvecs, pv, city, TOP_K)
+        t = _pick_strategy(chunks, cvecs, sv, quad, state, TOP_K)
+        sigs.append(tuple(sorted(p + t)))
+        used |= set(p) | set(t)
+        if set(p) & set(t):
+            overlaps += 1
+        if any(chunks[i]["state"] == state for i in t):
+            state_hit += 1
+
+    # 抽样打印（全 120 组太长）
+    for city, quad, state in [("Xian", "Q4", "WIN_ALONE"),
+                              ("Hefei", "Q1", "CREATE_TRAIL"),
+                              ("Shenzhen", "Q2", "MUTUAL_DESTROY"),
+                              ("Liuzhou", "Q3", "LOSE_ALONE")]:
+        pv = qvecs[qpos[f"policy::{TG.policy_key(city, state)}"]]
+        sv = qvecs[qpos[f"strategy::{TG.strategy_key(quad, state)}"]]
+        p = _pick_policy(chunks, cvecs, pv, city, TOP_K)
+        t = _pick_strategy(chunks, cvecs, sv, quad, state, TOP_K)
+        print(f"\n[{city} · {quad} · {state}]")
+        print(f"   政策 · {' ／ '.join(title[i][:22] for i in p)}")
+        print(f"   战略 · {' ／ '.join(title[i][:22] for i in t)}")
 
     n = len(sigs)
     uniq = len(set(sigs))
     print("\n" + "=" * 62)
-    print(f"有效分辨率：{n} 格 → {uniq} 组不同的检索结果")
-    if uniq < n * 0.6:
-        print("  ⚠ 重复偏高：多数格子拿到同一批材料。要么补语料（知道缺哪一格），")
-        print("    要么把 trigger 维度合并 —— 让数据决定，别硬凑格子数。")
+    print(f"有效分辨率：{n} 种组合 → {uniq} 组不同的检索结果")
+    if uniq < n * 0.5:
+        print("  ⚠ 重复偏高：多数组合拿到同一批材料。补语料，或合并 trigger 维度。")
     else:
-        print("  ✓ 分辨率健康：格子之间确实取到了不同材料。")
-    print(f"视角隔离：两视角交集非空的格子 {overlaps}/{n}"
-          f"（按 view 分池检索，预期为 0）")
-
-    # 覆盖率：有没有切片从未被任何格子选中 → 那是白写的
-    used = {i for sig in sigs for i in sig}
+        print("  ✓ 分辨率健康。")
+    print(f"裁决态命中：{state_hit}/{n}（锚定生效则应为 {n}/{n}）")
+    print(f"视角隔离  ：两视角交集非空 {overlaps}/{n}（按 view 分池，预期 0）")
     idle = [c["title"] for i, c in enumerate(chunks) if i not in used]
     print(f"语料利用率：{len(used)}/{len(chunks)} 条被用到")
     if idle:
-        print("  未被任何格子选中：")
+        print("  未被任何组合选中：")
         for t_ in idle:
-            print(f"    · {t_[:40]}")
+            print(f"    · {t_[:44]}")
 
 
 # ══════════════════════════ main ══════════════════════════
@@ -246,10 +320,10 @@ def main():
         return
 
     qkeys, qtexts = [], []
-    for key, views in TG.QUERIES.items():
-        for view in TG.VIEWS:
-            qkeys.append(f"{key}::{view}")
-            qtexts.append(views[view])
+    for view in TG.VIEWS:
+        for key, text in TG.QUERIES[view].items():
+            qkeys.append(f"{view}::{key}")      # 如 "policy::Xian|WIN_ALONE"
+            qtexts.append(text)
 
     print(f"\n── 嵌入（模型 {EMBED_MODEL}）──")
     print(f"  共 {len(chunks)} 条语料 + {len(qtexts)} 条 query")

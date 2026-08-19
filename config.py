@@ -254,3 +254,34 @@ def cross_weight(q_from, q_to):
 #   反映『平坦段残余规模收益』的低位**来近似。取值依据是产业常识，非实测标定。
 SCALE_ELASTICITY = 0.025  # 产量翻倍→单位成本降 2.5%（b≈0.037, RTS≈1.04）
                           # 0=关闭(回到 v1) / 0.025≈成熟行业平坦段 / 0.08+≈早期爬产
+
+
+# ══════════════════════════════════════════════════════════════
+# ═══════════ Phase 4 · 生成式简报（RAG）· 末尾追加 ═══════════
+# ══════════════════════════════════════════════════════════════
+# 供应商无关：国内主流平台（智谱 / 阿里云百炼 / 腾讯混元 / 百度千帆）均提供
+# OpenAI 兼容接口，故只需 base_url + 两个模型名。换厂商改这三行即可，代码不动。
+#
+# 分工：EMBED_MODEL 只在【构建期】由 build_corpus.py 调用（作者本地跑一次，
+#       产物 corpus/vecs.npz 随仓库走）；LLM_MODEL 在【运行期】由 brief.py 调用，
+#       用的是**用户自带的 key**。因此用户只需 generation 权限，不需要 embedding。
+
+LLM_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
+LLM_MODEL    = "glm-4-flash"      # 永久免费档：演示不会因额度耗尽而中断
+EMBED_MODEL  = "embedding-3"      # 仅构建期使用
+LLM_SIGNUP_URL = "https://open.bigmodel.cn"
+
+# 生成参数：温度略低于闲聊场景 —— 简报要的是稳定措辞，不是创意
+LLM_TEMPERATURE = 0.6
+LLM_MAX_TOKENS  = 2000
+LLM_TIMEOUT_S   = 60
+
+# 检索：每个视角取几条。语料仅 31 条，k=3 已能覆盖「锚定 2 条 + 补位 1 条」
+RAG_TOP_K = 3
+
+# 🔴 红线开关（不建议关闭，留此常量是为了让约束**在代码里可见、可审计**）
+#   出口对账：简报里出现的每个数字必须能在引擎读数里逐字对上，
+#   且禁止"腰斩/翻倍/高出三成"这类无阿拉伯数字、实质在做算术的表达。
+#   不过关的句子直接丢弃并回退模板句 —— 宁可少一句，不可脏一个数。
+RAG_RECONCILE_NUMBERS = True
+RAG_RECONCILE_ARITH_WORDS = True
