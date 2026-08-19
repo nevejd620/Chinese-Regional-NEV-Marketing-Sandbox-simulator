@@ -58,41 +58,97 @@ def _anchors(title: str) -> dict:
     return {"city": city, "state": state, "quad": quad}
 
 # 供应商配置：与 config.py 末尾追加的三个常量保持一致（换厂商只改这里/那里）
-BASE_URL = os.getenv("LLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4")
-EMBED_MODEL = os.getenv("EMBED_MODEL", "embedding-3")
+try:
+    import config as _C
+    _DEF_URL = getattr(_C, "LLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4")
+    _DEF_EMB = getattr(_C, "EMBED_MODEL", "embedding-3")
+    _DEF_K = getattr(_C, "RAG_TOP_K", 3)
+except ImportError:
+    _DEF_URL, _DEF_EMB, _DEF_K = "https://open.bigmodel.cn/api/paas/v4", "embedding-3", 3
+
+BASE_URL = os.getenv("LLM_BASE_URL", _DEF_URL)
+EMBED_MODEL = os.getenv("EMBED_MODEL", _DEF_EMB)
 API_KEY_ENV = ("ZHIPU_API_KEY", "LLM_API_KEY", "OPENAI_API_KEY")
 
-TOP_K = 3          # 每个视角取几条
+TOP_K = _DEF_K     # 每个视角取几条（config.RAG_TOP_K）
 BATCH = 16         # 嵌入批大小
 _SRC_RE = re.compile(r"^（来源[：:](.+)）\s*$")
 
 
 # ══════════════════════════ 1. 切片 ══════════════════════════
 def _split_md(text: str, view: str, fname: str) -> list[dict]:
-    """按 `##` 标题切片。标题行本身进 embed_text（标题信息量高，值得参与检索）。"""
-    chunks, cur = [], None
+    """按标题切片，两级：
+
+      `##`  一级条目 → 新切片
+      `###` 二级条目 → 也切成独立切片，标题继承父级（`父 · 子`）
+
+    为什么 `###` 也要切：几个政策条目（反内卷、以旧换新、补能设施）在 `##` 下
+    带多个 `###` 子节，合成一条会长到上千字，在 top-3 里会挤占整个提示词。
+    切开后既短又自足，检索也更准。
+    注意 `"###".startswith("##")` 为真，故必须先判 `###`，否则子标题会被当成一级。
+
+    另：`###` 行常把正文写在标题行内（如「###锂电：行业…新周期。」），
+    故取冒号前一小段作子标题，冒号后的内容并入正文，不丢字。
+    """
+    chunks, cur, parent = [], None, ""
+
+    def _flush():
+        nonlocal cur
+        if cur:
+            chunks.append(cur)
+        cur = None
+
     for raw in text.splitlines():
         line = raw.rstrip()
+        if line.startswith("###"):
+            _flush()
+            rest = line.lstrip("#").strip()
+            head, sep, tail = rest.partition("：")
+            if not sep or len(head) > 24:              # 无冒号或前段过长 → 整行进正文
+                head, tail = rest[:20], rest
+            cur = {"title": f"{parent} · {head}".strip(" ·"),
+                   "body": [tail.strip()] if tail.strip() else [],
+                   "sources": [], "parent": parent}
+            continue
         if line.startswith("##"):
-            if cur:
-                chunks.append(cur)
-            cur = {"title": line.lstrip("#").strip(), "body": [], "sources": []}
+            _flush()
+            parent = line.lstrip("#").strip()
+            cur = {"title": parent, "body": [], "sources": [], "parent": ""}
             continue
         if cur is None:
             continue                                   # 首个 ## 之前的内容丢弃
         m = _SRC_RE.match(line.strip())
         if m:
-            cur["sources"].append(m.group(1).strip())
+            # 一行可含多个来源（以 ；分隔）→ 拆开存，否则引用列表会把两份文件
+            # 当成一条，且去重认不出来（首轮实测：西安那条与另一条实为同一文件）
+            for one in re.split(r"[;；]", m.group(1)):
+                one = one.strip()
+                if one and one not in cur["sources"]:
+                    cur["sources"].append(one)
         elif line.strip():
             cur["body"].append(line.strip())
-    if cur:
-        chunks.append(cur)
+    _flush()
+
+    # 来源继承：`###` 子条目若自身没有 `（来源：…）`，取同父下最近一条有来源的，
+    # 再退回父条目。（如「以旧换新」两个子节共用节末的一条来源。）
+    for i, c in enumerate(chunks):
+        if c["sources"] or not c.get("parent"):
+            continue
+        sib = next((chunks[j]["sources"] for j in range(i + 1, len(chunks))
+                    if chunks[j].get("parent") == c["parent"] and chunks[j]["sources"]), None)
+        if sib is None:
+            sib = next((chunks[j]["sources"] for j in range(i - 1, -1, -1)
+                        if chunks[j].get("parent") == c["parent"] and chunks[j]["sources"]), None)
+        if sib is None:
+            sib = next((chunks[j]["sources"] for j in range(i - 1, -1, -1)
+                        if chunks[j]["title"] == c["parent"] and chunks[j]["sources"]), None)
+        c["sources"] = list(sib or [])
 
     out = []
     for i, c in enumerate(chunks):
         body = "".join(c["body"])
         if not body:
-            print(f"  ⚠ 跳过空条目：{c['title']}")
+            # 只作为容器的父标题（其下全是 ### 子节）→ 静默跳过，不是异常
             continue
         out.append({
             "id": f"{view}-{i:03d}",
