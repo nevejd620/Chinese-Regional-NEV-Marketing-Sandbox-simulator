@@ -117,19 +117,6 @@ def _inject_css():
              padding:.55rem .8rem; box-shadow:0 1px 2px rgba(20,38,31,.04); }
       .kpi .l { font-size:.78rem; color:#7A8A83; }
       .kpi .v { font-size:1.12rem; font-weight:700; line-height:1.5; }
-      /* 象限地图：坐标轴与卡片 */
-      .qgrid { position:relative; }
-      .qcard { border-radius:12px; padding:.7rem .9rem; min-height:196px;
-               border:1px solid; }
-      .qcard .h { font-weight:700; font-size:.98rem; margin-bottom:.35rem;
-                  border-left:4px solid; padding-left:.5rem; }
-      .qcard .f { font-size:.82rem; color:#3E4F49; line-height:1.65; }
-      .qcard .tag { display:inline-block; padding:.08rem .5rem; border-radius:8px;
-                    font-size:.76rem; font-weight:600; margin-top:.3rem; }
-      .axis-t { font-size:.78rem; color:#8A9A93; }
-      .axis-e { font-size:.88rem; color:#3E4F49; font-weight:600; }
-      .vline { border-left:1.5px solid #C7D4CF; height:100%; margin:0 auto; }
-      .hline { border-top:1.5px solid #C7D4CF; margin:.35rem 0; }
     </style>""", unsafe_allow_html=True)
 
 
@@ -565,40 +552,86 @@ def _quad_stats(q):
             f"ASP {lo/1e4:g}–{hi/1e4:g}万 · 毛利 {m0*100:.0f}–{m1*100:.0f}%")
 
 
-def _quad_card(col, q, highlight=None, compact=False, show_play=True):
-    """一格象限卡：底色为该象限色的高透明版，左侧色条与图 B/C 同色。"""
+_QUAD_CSS = """
+<style>
+.qm-grid{
+  display:grid; position:relative;
+  grid-template-columns:1fr 1fr;
+  grid-template-rows:1fr auto 1fr;   /* 上下两排严格等高，不靠 min-height */
+  margin:.25rem 0 .5rem;
+}
+/* 纵轴：覆在网格正中，不占列 → 窄屏不会撑出空白行 */
+.qm-grid::after{
+  content:""; position:absolute; left:50%; top:0; bottom:0;
+  width:1.5px; background:#C7D4CF; transform:translateX(-.75px);
+  pointer-events:none;
+}
+.qm-cell{ height:100%; box-sizing:border-box; }
+.qm-xband{
+  grid-column:1 / -1; display:flex; justify-content:space-between;
+  align-items:flex-end; gap:.5rem; padding:.45rem .1rem;
+  border-top:1.5px solid #C7D4CF;
+  border-bottom:1.5px solid #C7D4CF;
+}
+.qm-card{
+  height:100%; box-sizing:border-box; border:1px solid; border-radius:12px;
+  padding:.8rem .95rem; margin:.28rem;
+}
+.qm-h{ font-weight:700; font-size:.98rem; line-height:1.35;
+       border-left:4px solid; padding-left:.5rem; margin-bottom:.5rem; }
+.qm-f{ font-size:.82rem; color:#3E4F49; line-height:1.6; margin-bottom:.32rem; }
+.qm-tag{ display:inline-block; border-radius:6px; padding:.08rem .45rem;
+         font-size:.72rem; margin-bottom:.4rem; }
+.qm-axt{ font-size:.78rem; color:#8A9A93; }
+.qm-axe{ font-size:.88rem; color:#3E4F49; font-weight:600; }
+
+/* 窄屏：保持 2×2，只缩字号、只留首行。绝不换单列——一列就没有象限地图了。 */
+@media (max-width:640px){
+  .qm-card{ padding:.55rem .6rem; margin:.18rem; border-radius:8px; }
+  .qm-h{ font-size:.78rem; border-left-width:3px; padding-left:.4rem;
+         margin-bottom:.35rem; }
+  .qm-f{ font-size:.71rem; line-height:1.45; }
+  .qm-f.qm-more{ display:none; }        /* 详情降级到下方 expander */
+  .qm-xband{ flex-direction:column; align-items:flex-start; gap:.15rem; }
+  .qm-axt,.qm-axe{ font-size:.68rem; }
+}
+</style>
+"""
+
+
+def _quad_card_html(q, highlight=None, compact=False, show_play=True):
+    """一格象限卡 → HTML 字符串（不再直接写进 col）。内容与原版逐字一致。"""
     cell = T.QUAD_CELL[q]
     c = QUAD_COLOR.get(q, PRIMARY)
-    rows = [f'<div class="h" style="border-color:{c};color:{c}">{cell["name"]}</div>']
+    rows = [f'<div class="qm-h" style="border-color:{c};color:{c}">{cell["name"]}</div>']
     if q == highlight:
-        rows.append(f'<div class="tag" style="background:{c};color:#fff;'
+        rows.append(f'<div class="qm-tag" style="background:{c};color:#fff;'
                     f'font-weight:700">● 当前所在象限</div>')
     if compact:
         if show_play:
-            rows.append(f'<div class="f">打法 · {cell["play"]}</div>')
+            rows.append(f'<div class="qm-f">打法 · {cell["play"]}</div>')
     else:
-        for key in ("feature", "anchors", "strategy"):
-            rows.append(f'<div class="f"><b>{T.QUAD_FIELD[key]}</b>：{cell[key]}</div>')
-        rows.append(f'<div class="f"><b>{T.QUAD_FIELD["params"]}</b>：'
+        # 首行(feature)窄屏保留，其余三行标 qm-more → 窄屏隐藏、进 expander
+        for i, key in enumerate(("feature", "anchors", "strategy")):
+            more = "" if i == 0 else " qm-more"
+            rows.append(f'<div class="qm-f{more}"><b>{T.QUAD_FIELD[key]}</b>：'
+                        f'{cell[key]}</div>')
+        rows.append(f'<div class="qm-f qm-more"><b>{T.QUAD_FIELD["params"]}</b>：'
                     f'{_quad_stats(q)}</div>')
-    # 四格等高：compact 与详版各有一个固定高度，保证 2×2 严格对齐（空行可接受）
-    h = 96 if compact else 210
-    # 当前象限：加粗描边 + 外发光环 + 底色加深，作强提醒
     sel = (f"border-width:2px;border-color:{c};"
            f"box-shadow:0 0 0 3px {c}22, 0 2px 10px rgba(20,38,31,.10);"
            if q == highlight else f"border-color:{c}55;")
     bg = f"{c}22" if q == highlight else f"{c}12"
-    col.markdown(
-        f'<div class="qcard" style="background:{bg};{sel}min-height:{h}px">'
-        f'{"".join(rows)}</div>', unsafe_allow_html=True)
+    return (f'<div class="qm-cell"><div class="qm-card" '
+            f'style="background:{bg};{sel}">{"".join(rows)}</div></div>')
 
 
 def render_quadrant_map(highlight=None, compact=False, show_play=True):
-    """2×2 象限地图。
+    """2×2 象限地图（CSS Grid 版）。
 
-    用真实的十字坐标轴划出四格、四张等大卡片嵌进象限里（此前是灰色小字加箭头，
-    看不出"这是一个坐标系"）。轴标题一律【移出图区】：纵轴标题落在「高端市场」
-    上方，横轴标题落在「纯电」左侧 —— 否则会压到卡片上。
+    一次 st.markdown 渲染整张网格：上排 Q1|Q2、中间横轴带、下排 Q4|Q3，
+    纵轴用 ::after 覆在正中。四格等高来自 grid 的 1fr 行高，与内容多少无关。
+    窄屏保持 2×2，被隐藏的详情由下方 expander 兜住。
     """
     AX = getattr(T, "QUAD_AXIS", {
         "y_title": "纵轴 · 价格层级", "y_top": "高端市场", "y_bot": "中低端大众市场",
@@ -608,36 +641,47 @@ def render_quadrant_map(highlight=None, compact=False, show_play=True):
         st.subheader(T.QUAD_MAP_TITLE)
         st.caption(T.QUAD_MAP_INTRO)
 
-    # 纵轴：标题 + 上端点，居中于整张图之上
-    st.markdown(f'<div style="text-align:center">'
-                f'<div class="axis-t">{AX["y_title"]}</div>'
-                f'<div class="axis-e">▲ {AX["y_top"]}</div></div>',
-                unsafe_allow_html=True)
+    xband = (f'<div class="qm-xband">'
+             f'  <div><div class="qm-axt">{AX["x_title"]}</div>'
+             f'       <div class="qm-axe">◀ {AX["x_left"]}</div></div>'
+             f'  <div class="qm-axe">{AX["x_right"]} ▶</div>'
+             f'</div>')
 
-    # 上排：Q1 | 轴 | Q2
-    l, mid, r = st.columns([1, 0.06, 1], gap="small")
-    _quad_card(l, "Q1", highlight, compact, show_play)
-    mid.markdown(f'<div class="vline" style="height:{96 if compact else 210}px">'
-                 f'</div>', unsafe_allow_html=True)
-    _quad_card(r, "Q2", highlight, compact, show_play)
+    st.markdown(
+        _QUAD_CSS
+        + f'<div style="text-align:center">'
+          f'<div class="qm-axt">{AX["y_title"]}</div>'
+          f'<div class="qm-axe">▲ {AX["y_top"]}</div></div>'
+        + '<div class="qm-grid">'
+        + _quad_card_html("Q1", highlight, compact, show_play)
+        + _quad_card_html("Q2", highlight, compact, show_play)
+        + xband
+        + _quad_card_html("Q4", highlight, compact, show_play)   # 左下＝纯电·中低端
+        + _quad_card_html("Q3", highlight, compact, show_play)   # 右下＝多路线·全价位
+        + '</div>'
+        + f'<div style="text-align:center" class="qm-axe">▼ {AX["y_bot"]}</div>',
+        unsafe_allow_html=True)
 
-    # 横轴带：左＝轴标题 + 左端点，右＝右端点
-    xl, xr = st.columns([1, 1])
-    xl.markdown(f'<div class="axis-t">{AX["x_title"]}</div>'
-                f'<div class="axis-e">◀ {AX["x_left"]}</div>', unsafe_allow_html=True)
-    xr.markdown(f'<div style="text-align:right" class="axis-e">'
-                f'{AX["x_right"]} ▶</div>', unsafe_allow_html=True)
-    st.markdown('<div class="hline"></div>', unsafe_allow_html=True)
+    # 窄屏被 CSS 藏掉的三行，用原生 expander 兜住（桌面端展开亦无害）
+    if not compact:
+        with st.expander("展开四象限完整说明"):
+            for q in ("Q1", "Q2", "Q4", "Q3"):
+                cell = T.QUAD_CELL[q]
+                st.markdown(f'**{cell["name"]}**')
+                for key in ("feature", "anchors", "strategy"):
+                    st.markdown(f'- **{T.QUAD_FIELD[key]}**：{cell[key]}')
+                st.markdown(f'- **{T.QUAD_FIELD["params"]}**：{_quad_stats(q)}')
 
-    # 下排：Q4 | 轴 | Q3
-    l2, mid2, r2 = st.columns([1, 0.06, 1], gap="small")
-    _quad_card(l2, "Q4", highlight, compact, show_play)
-    mid2.markdown(f'<div class="vline" style="height:{96 if compact else 210}px">'
-                  f'</div>', unsafe_allow_html=True)
-    _quad_card(r2, "Q3", highlight, compact, show_play)
+    if not compact:
+        st.caption(T.QUAD_MAP_NOTE)
+        if T.PARAM_BETA_DESC or T.PARAM_THETA_DESC:
+            st.divider()
+            st.markdown(f"**{T.PARAM_READ_TITLE}**")
+            if T.PARAM_BETA_DESC:
+                st.markdown(f"- **β**：{T.PARAM_BETA_DESC}")
+            if T.PARAM_THETA_DESC:
+                st.markdown(f"- **θ**：{T.PARAM_THETA_DESC}")
 
-    st.markdown(f'<div style="text-align:center" class="axis-e">'
-                f'▼ {AX["y_bot"]}</div>', unsafe_allow_html=True)
 
     if not compact:
         st.caption(T.QUAD_MAP_NOTE)
