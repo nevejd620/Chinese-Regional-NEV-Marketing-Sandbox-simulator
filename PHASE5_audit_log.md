@@ -129,7 +129,7 @@ exists + st_size >= 1024 + sqlite_master 含 REQUIRED_TABLES
 > **修正了 Phase 4 的一个判断失误**：当年把 `DUAL_BASIS_NOTE` 定位为「放简报末尾与 About 页，不在首屏喧宾夺主」——逻辑上对，但没料到矛盾会在**首屏当场发生**。声明在第三屏、矛盾在第一屏，等于标注没盖住它要标注的地方。
 > **教训：标注必须盖住它要标注的位置。** 「不喧宾夺主」是措辞长短问题，不是位置问题。
 
-### C5. A 段基准 ROE 行 — 入文案层并加注释
+### C5. 板块 A 基准 ROE 行 — 入文案层并加注释
 
 起点句刻意**不带数字**（切城市时标题只有城市名在变，视觉上像没反应；但把基线 ROE 塞进首屏会多一个数字 + 一个术语，且它是「牌面」不是「结果」，措辞稍偏就会被读成裁决）。
 
@@ -144,7 +144,7 @@ exists + st_size >= 1024 + sqlite_master 含 REQUIRED_TABLES
 
 > **分工**：起点句管「你还没出牌」，基准 ROE 行管「你这副牌长什么样」。
 
-### C6. 控制台 — 一键回到起点 + 三卡等高（`app.py` + `copy_cn.py`）
+### C6. 控制台 — 一键回到起点 + 卡片布局（`app.py` + `copy_cn.py`）
 
 **① 「↺ 回到起点」按钮**
 清空「我的动作」三旋钮 + 外生冲击（`k_price` / `k_eco` / `k_ally` / `k_shock`），**保留城市 / 象限 / 评估指标**——牌面与显示开关不是决策（P5.7）。同族于既有的「预设战略·一键试打法」：只替用户拨已有旋钮，不新增旋钮、不碰引擎，不撞宪章 §6 的 ≤3 动作预算。
@@ -158,6 +158,63 @@ exists + st_size >= 1024 + sqlite_master 含 REQUIRED_TABLES
 
 **③ `_is_initial` 位置**：原定义在 861 行、首个调用在 365 行。运行无碍，但读代码时会卡一下 → 挪到 `render_console` 之前。
 
+**④ Streamlit 回调陷阱（本阶段暴露的 Phase 4 遗留 bug）**
+
+> `st.session_state["k_price"] = ...` 写在 `if st.button(...)` 分支里会抛
+> `StreamlitAPIException: cannot be modified after the widget with key k_price is instantiated`
+> —— 滑块在本次运行中已实例化，之后就不许再写它的 key。
+>
+> **正解：走 `on_click` 回调**。回调在脚本重跑**之前**执行，此时写入合法，且回调自带 rerun，无需 `st.rerun()`。
+>
+> 此 bug 在 Phase 4 的「预设战略」按钮里**早已存在**，因该区默认折叠、无人点开点击而从未触发。
+> Phase 5 把预设区改成常驻可见后当场炸出。新增的「回到起点」按钮原本照抄了同一写法，一并修正。
+>
+> **教训**：折叠区不只是「看不见」，它还会**掩盖那里的 bug**。把东西从 expander 里放出来时，要当作新代码重新验一遍。
+
+
+### C7. 叙事层与诚实声明（`README.md` + `copy_cn.ABOUT_MD` + `IS_FALLBACK` 横幅）
+
+**① `IS_FALLBACK` 降级横幅**（§D5 闭合）
+显示在「参数恢复表」折叠区顶部——数字失真最要命的地方就在那张表。
+
+> **踩过的坑**：`IS_FALLBACK` 是 `ensure_db()` **运行时**才写的模块级全局。
+> 若写 `from ensure_db import IS_FALLBACK`，import 时就把 `False` 绑死，横幅**永远不会触发**。
+> 必须 `import ensure_db as _edb`，调用后读 `_edb.IS_FALLBACK`。
+
+**② About / 诚实声明收拢一页**（§D4 闭合）
+原「关于 / 诚实声明」折叠区只有一句 `PROXY_NOTE_P3`，其余声明散落各处。现收拢为 `copy_cn.ABOUT_MD`，覆盖四块：数据是合成的（但参数可验证）· 已知简化四条 · 财务数字与 LLM 物理分离 · 用途声明。**未新开 tab**——沿用既有折叠区，不动两 tab 结构（P5.1）。
+
+**③ `README.md` 正式稿**（§D3 闭合）
+结构：一句话立意 → 30 秒五步路径 → 这是什么 → 因果链（mermaid）+ 三层架构 → 本地运行 + 仓库结构 → 已知简化 → 开发过程。
+
+- 复用仓库现有资源：`viz2_recovery.png`（参数恢复图，作为"参数可验证"的直接证据）、`NEV_architecture.svg`、`phase4_rag_dataflow_offline_and_runtime.svg`。
+- **数据表述纠正**：草拟阶段一度写成"基于真实的中国新能源汽车数据"——**错误且有害**。数据是 DGP 合成的（宪章 §4 明确排除"用真实车企数据标定参数"）。若面试官信了该表述，第一个问题必然是数据来源与清洗，而真相其实更强：**参数是埋进去再恢复出来的，所以可验证**。正确措辞为"合成数据，**锚定**真实企业的定性画像"——锚定 ≠ 基于。
+- 文末指向五份审计日志的**决策演变台账**（"什么被推翻了、为什么"）。
+### C8. `ensure_db` 降级路径实测（Colab · 全绿）
+
+四个阶段以来 option B **从未被执行过**（走 `git add -f` 路线，主路径永不触发），
+且 Phase 5 才刚把判据改严 —— **掉进降级路径的概率因此升高**，故必须实测。
+
+| 场景 | 结果 |
+|---|---|
+| 四种坏文件（不存在 / 0 字节 / 空壳 0 表 / 非 sqlite） | 全部识别为不可用 ✓ |
+| 正品 `nev.db` | 可用 ✓ |
+| 删库 → 重建 | `usable=True`、`IS_FALLBACK=True` ✓ |
+| 空壳（8192 B）→ 删档 → 重建 | 同上 ✓ |
+| 重建库跑 `calibration.py` | β 4/4、γ 8/10 ✓ |
+
+**重建库与仓库版逐项吻合**：六表行数 `sales 6570 · supply 1314 · macro 1095 · fin 72 · infra 72 · model 18` 完全相同；恢复出的 Shanghai 0.5657 / Xian 0.5513 与 `PHASE2 §G3`、handoff §六 记录的 0.566 / 0.551 逐位一致。
+→ **反证 DGP 固定种子可复现，option B 重建的数据集与 force-add 的那份同批。**
+
+> **Colab 上传的坑**：`files.upload()` 遇同名文件**不覆盖**，存成 `ensure_db (1).py`。
+> 本次测试仍有效（仓库里已是新版），但若依赖上传来测未 push 的改动，会**静默测到旧代码**。
+> 判别法：看输出里有没有新版才有的提示语。（顺带：那个副本别提交。）
+
+
+---
+
+
+
 
 ---
 
@@ -170,9 +227,9 @@ exists + st_size >= 1024 + sqlite_master 含 REQUIRED_TABLES
 |---|---|---|---|
 | 1 | ~~移动端：象限地图窄屏下退化~~ | 修 bug / 趣味 | ✅ 见 §C2 |
 | 2 | **演示路径脚本**：五步、逐句对照实机核验完毕 | 叙事 | ✅ 见 `README_draft.md` |
-| 3 | README「三分钟看懂」+ 总架构图 | 叙事 | ⬜ |
-| 4 | About / 诚实声明收拢一页（宪章 §10.3） | 叙事 | ⬜ |
-| 5 | `app.py` 接 `IS_FALLBACK` 提示条（文案入 `copy_cn`） | 修 bug 配套 | ⬜ |
+| 3 | README 正式稿（含 mermaid 因果链 + 复用现有架构图） | 叙事 | ✅ 见 §C7③ |
+| 4 | About / 诚实声明收拢一页（`copy_cn.ABOUT_MD`） | 叙事 | ✅ 见 §C7② |
+| 5 | `app.py` 接 `IS_FALLBACK` 提示条 | 修 bug 配套 | ✅ 见 §C7① |
 | 6 | 「板块 A」等称谓在 `copy_cn` 内统一（本次已修 `DUAL_BASIS_HINT` 一处） | 文案 | ⬜ |
 
 ---
@@ -180,7 +237,9 @@ exists + st_size >= 1024 + sqlite_master 含 REQUIRED_TABLES
 ## E. 验收自检清单 (Acceptance Checks)
 
 - [x] `db_usable()` 五种情形判定正确（不存在 / 0 字节 / 空壳 / 非 sqlite / 健康）
-- [ ] 删库后 `python ensure_db.py` 走 option B 重建，`calibration.py` 随后跑通
+- [x] 删库后走 option B 重建，`calibration.py` 随后跑通（Colab 实测，见 §C8）
+- [x] `IS_FALLBACK` 在两种降级场景下均为 `True`（删库 / 空壳）
+- [ ] 实机：横幅在界面上确实渲染（逻辑已验，UI 渲染未验）
 - [x] 象限地图 375px 竖屏保持 2×2、四格等高、横轴文字不裁切
 - [x] 桌面端横轴线与卡片不重叠（**任意**高亮象限下均验）
 - [x] 移动端「沙盘」tab 通查：图表一张一行、滑块一指标一行，判定可接受

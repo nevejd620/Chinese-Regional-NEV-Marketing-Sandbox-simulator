@@ -301,6 +301,29 @@ def _is_initial(k):
             and not k.get("ally") and not k.get("shock"))
 
 
+def _set_knobs(price=None, eco=None, ally=None, shock=None, preset=None):
+    """按钮回调：替用户拨已有旋钮。
+
+    必须走 on_click 回调，不能在 `if st.button(...)` 分支里直接改 session_state ——
+    widget 一旦在本次运行中实例化，再写它的 key 会抛
+    StreamlitAPIException("cannot be modified after the widget ... is instantiated")。
+    回调在脚本重跑之前执行，那时改是合法的，且回调自带 rerun，无需 st.rerun()。
+    （此坑 Phase 4 即存在，因预设区当时默认折叠、无人点击而未暴露。）
+    """
+    if price is not None:
+        st.session_state["k_price"] = price
+    if eco is not None:
+        st.session_state["k_eco"] = eco
+    if ally is not None:
+        st.session_state["k_ally"] = ally
+    if shock is not None:
+        st.session_state["k_shock"] = shock
+    if preset:
+        st.session_state["preset_active"] = preset
+    else:
+        st.session_state.pop("preset_active", None)
+
+
 def render_console():
     """一页一个控制台。返回全部旋钮/牌面状态（同时也是 Phase 4 简报的动作快照来源）。"""
     quads = list(C.QUAD_PROFILE.keys())
@@ -360,13 +383,13 @@ def render_console():
         pcols = st.columns(len(T.PRESET_STRATEGIES))
         for col, (_pid, _p) in zip(pcols, T.PRESET_STRATEGIES.items()):
             with col:
-                if st.button(_p["name"], key=f"preset_{_pid}", use_container_width=True):
-                    # 只替用户拨已有旋钮，不新增旋钮、不碰引擎。
-                    st.session_state["k_price"] = _p["knobs"]["price"]
-                    st.session_state["k_eco"] = _p["knobs"]["eco"]
-                    st.session_state["k_ally"] = _p["knobs"]["ally"]
-                    st.session_state["preset_active"] = _pid
-                    st.rerun()
+                # 只替用户拨已有旋钮，不新增旋钮、不碰引擎。
+                st.button(_p["name"], key=f"preset_{_pid}", use_container_width=True,
+                          on_click=_set_knobs,
+                          kwargs=dict(price=_p["knobs"]["price"],
+                                      eco=_p["knobs"]["eco"],
+                                      ally=_p["knobs"]["ally"],
+                                      preset=_pid))
                 st.caption(_p["desc"])
         _act = st.session_state.get("preset_active")
         if _act:
@@ -376,18 +399,13 @@ def render_console():
     # 一键回到起点：只清「我的动作」三旋钮 + 外生冲击。
     # 城市 / 象限 / 评估指标保留——牌面与显示开关不是决策（P5.7）。
     # 清完四项后 _is_initial 成立 → 首屏自动退回起点句，闭环。
-    # 注意：必须放在 expander 之外，否则默认收起 = 等于没有。
+    # 注意：必须常驻可见 —— 早前放在默认折叠的 expander 里，等于没有。
     if not _is_initial(dict(price_pct=price_pct, eco=eco, ally=ally, shock=shock)):
         r1, r2 = st.columns([1, 4])
         with r1:
-            if st.button(_t("RESET_LABEL", "↺ 回到起点"), key="reset_knobs",
-                         use_container_width=True):
-                st.session_state["k_price"] = 0
-                st.session_state["k_eco"] = 0.0
-                st.session_state["k_ally"] = False
-                st.session_state["k_shock"] = 0
-                st.session_state.pop("preset_active", None)
-                st.rerun()
+            st.button(_t("RESET_LABEL", "↺ 回到起点"), key="reset_knobs",
+                      use_container_width=True, on_click=_set_knobs,
+                      kwargs=dict(price=0, eco=0.0, ally=False, shock=0))
         with r2:
             st.caption(_t("RESET_HINT", ""))
 
