@@ -396,9 +396,9 @@ def render_console():
             st.caption(f"当前预设：**{T.PRESET_STRATEGIES[_act]['name']}**（继续拨旋钮即可自由微调）")
 
 
-    # 一键回到起点：只清「我的动作」三旋钮 + 外生冲击。
+    # 一键回到初始状态：只清「我的动作」三旋钮 + 外生冲击。
     # 城市 / 象限 / 评估指标保留——牌面与显示开关不是决策（P5.7）。
-    # 清完四项后 _is_initial 成立 → 首屏自动退回起点句，闭环。
+    # 清完四项后 _is_initial 成立 → 首屏自动退回初始态标题，闭环。
     # 注意：必须常驻可见 —— 早前放在默认折叠的 expander 里，等于没有。
     if not _is_initial(dict(price_pct=price_pct, eco=eco, ally=ally, shock=shock)):
         r1, r2 = st.columns([1, 4])
@@ -920,7 +920,7 @@ def render_sandbox():
     # ── 首屏一句人话结论：以博弈四态裁决为准（它含名次，信息量最大）──
     with headline:
         if _is_initial(k):
-            # 用户还没拨过任何控件 → 不下裁决，只描述牌面并召唤动作
+            # 用户还没拨过任何控件 → 不下裁决，只描述牌面并召唤动作（初始态标题）
             st.markdown(_t("HEADLINE_BASELINE", "### 起点：{city} · {quad}").format(
                 city=cn_of(k["city"]),
                 quad=T.QUAD_CELL[k["quad"]]["short"]))
