@@ -355,6 +355,19 @@ def render_console():
         if _act:
             st.caption(f"当前预设：**{T.PRESET_STRATEGIES[_act]['name']}**（继续拨旋钮即可自由微调）")
 
+        # 一键回到起点：只清「我的动作」三旋钮 + 外生冲击。
+        # 城市 / 象限 / 评估指标保留——它们是牌面与显示开关，不是决策（P5.7）。
+        # 清完四项后 _is_initial 成立 → 首屏自动退回起点句，闭环。
+        st.divider()
+        if st.button(_t("RESET_LABEL", "↺ 回到起点"), key="reset_knobs"):
+            st.session_state["k_price"] = 0
+            st.session_state["k_eco"] = 0.0
+            st.session_state["k_ally"] = False
+            st.session_state["k_shock"] = 0
+            st.session_state.pop("preset_active", None)
+            st.rerun()
+        st.caption(_t("RESET_HINT", ""))
+
     return dict(city=city, quad=quad, price_pct=price_pct, eco=eco,
                 ally=ally, shock=shock, scorer=scorer)
 
