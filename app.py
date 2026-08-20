@@ -16,7 +16,8 @@ Phase 4 归并版：原「Phase 2 财务解剖」与「Phase 3 定价博弈」�
   落实宪章 §5 唯一红线（基座只认通用名）。它是**外生环境**、不是你的动作，故移出动作组。
 - 控制台分两组：**我的动作**（定价 / 生态投资 / 联盟，守 ≤3）与
   **牌面与环境**（城市 / 象限 / 外生冲击 / 评判指标，不占动作预算，见宪章 §10.2 修订）。
-- 版面：结论前置 → 控制台 → 图A（我自己·上下双线）→ 图B|图C（并排·打价格 vs 结生态）
+- 版面：结论前置 → 控制台 → 板块 A（我自己 · ROE 射线 + spread 射线）
+        → 图一 | 图二（并排 · 打价格 vs 结生态）
         → 总裁办简报（Phase 4 占位）→ 折叠区（象限地图 / 参数恢复表 / 诚实声明）。
 
 Run:  streamlit run app.py
@@ -47,7 +48,7 @@ CITY_CN = {"Shanghai": "上海", "Shenzhen": "深圳", "Hefei": "合肥",
            "Changzhou": "常州", "Xian": "西安", "Liuzhou": "柳州"}
 cn_of = lambda r: CITY_CN.get(r, r)
 
-# 四象限色板：**单一真相源在 copy_cn.QUAD_COLOR**，象限地图与图 C 共用，
+# 四象限色板：**单一真相源在 copy_cn.QUAD_COLOR**，象限地图与图二共用，
 # 保证卡片颜色与散点颜色一一对应（此前两处各写一套，对不上号）。
 QUAD_COLOR = getattr(T, "QUAD_COLOR", {
     "Q1": "#0E9BAE", "Q2": "#6F5BD6", "Q3": "#0A6E4C", "Q4": "#E5A017"})
@@ -118,20 +119,6 @@ def _inject_css():
              padding:.55rem .8rem; box-shadow:0 1px 2px rgba(20,38,31,.04); }
       .kpi .l { font-size:.78rem; color:#7A8A83; }
       .kpi .v { font-size:1.12rem; font-weight:700; line-height:1.5; }
-      /* 同一行内的带框卡片等高：滑块自带数值行、开关没有，内容天然不等高。
-         占位符是治标（多了反超、少了还矮）；正解是让列拉伸、卡片撑满，
-         再把卡内内容首尾分离，标签自然贴底对齐。 */
-      div[data-testid="stHorizontalBlock"] { align-items: stretch; }
-      div[data-testid="stColumn"], div[data-testid="column"] { display: flex; }
-      div[data-testid="stColumn"] > div,
-      div[data-testid="column"] > div { width: 100%; }
-      div[data-testid="stVerticalBlockBorderWrapper"] { height: 100%; }
-      div[data-testid="stVerticalBlockBorderWrapper"] > div,
-      div[data-testid="stVerticalBlockBorderWrapper"] > div
-        > div[data-testid="stVerticalBlock"] {
-          height: 100%;
-          justify-content: space-between;
-      }
     </style>""", unsafe_allow_html=True)
 
 
@@ -214,11 +201,11 @@ def _panel(days, p05, p50, p95, prev_p50, color, rgba, y_title,
     return fig
 
 
-# ══════════════════════════ 图 B / 图 C · 博弈散点 ══════════════════════════
+# ══════════════════════════ 图一 / 图二 · 博弈散点 ══════════════════════════
 def _fig_arena(c1, y_key, y_lab, quad=None):
-    """图 B · 象限内竞争：份额 × 评判指标（纯竞争、无联盟）。
+    """图一 · 象限内竞争：份额 × 评判指标（纯竞争、无联盟）。
 
-    配色规则：**你＝当前象限色**（与图 C、象限地图同色），对手统一退为石墨灰。
+    配色规则：**你＝当前象限色**（与图二、象限地图同色），对手统一退为石墨灰。
     这样"你"在三处始终同色，识别成本最低；对手仍看得清相对位置但不抢注意力。
     """
     fig = go.Figure()
@@ -247,7 +234,7 @@ def _fig_arena(c1, y_key, y_lab, quad=None):
 
 
 def _fig_eco(c2, y_key, y_lab, quad=None):
-    """图 C · 区域/全国竞合：非价格吸引力 × 评判指标（跨象限、联盟连边）。"""
+    """图二 · 区域/全国竞合：非价格吸引力 × 评判指标（跨象限、联盟连边）。"""
     fig = go.Figure()
     pt_by_id = {p["firm_id"]: p for p in c2["points"]}
     for e in c2["edges"]:
@@ -283,7 +270,7 @@ def _fig_eco(c2, y_key, y_lab, quad=None):
         fig.add_trace(go.Scatter(
             x=[p["a_value"] for p in you_pts], y=[p.get(y_key) for p in you_pts],
             mode="markers+text", text=["你"], textposition="top center", name="你",
-            # "你"用当前象限色 —— 与图 B、象限地图卡片同色，三处一眼对得上
+            # "你"用当前象限色 —— 与图一、象限地图卡片同色，三处一眼对得上
             marker=dict(size=26, color=QUAD_COLOR.get(quad, PRIMARY),
                         line=dict(width=[2.2 if p["in_alliance"] else 1 for p in you_pts],
                                   color=["#3d3d3d" if p["in_alliance"] else "white"
@@ -322,20 +309,21 @@ def render_console():
         f'<div class="panel" style="--accent:{PANEL_LINE}">'
         f'<div class="panel-t">{_t("CONSOLE_ACTION_TITLE", "你的动作")}</div></div>',
         unsafe_allow_html=True)
-    # 三项各包一张等高小卡：靠卡片撑齐高度，比 CSS 微调稳（此前反复对不齐）
-    a1, a2, a3 = st.columns(3, gap="medium")
-    with a1:
-        with st.container(border=True):
+    # 一张大卡内放三列，而不是三张各自带框的小卡。
+    # 三张独立卡片必然要解决"谁比谁高"（滑块自带数值行、开关没有），
+    # 占位符与 CSS 拉伸都试过，都在对抗 Streamlit 的 DOM。
+    # 结构上换成单卡多列，高度问题不存在了，且与「预设」区框线统一。
+    with st.container(border=True):
+        a1, a2, a3 = st.columns(3, gap="medium")
+        with a1:
             price_pct = st.slider(T.SLIDER_PRICE, PRICE_RANGE[0], PRICE_RANGE[1], 0,
                                   step=1, key="k_price", label_visibility="collapsed")
             _knob_label(T.SLIDER_PRICE, _t("HELP_PRICE", ""))
-    with a2:
-        with st.container(border=True):
+        with a2:
             eco = st.slider(T.SLIDER_ECO, 0.0, C.ECO_SLIDER_MAX, 0.0, step=0.05,
                             key="k_eco", label_visibility="collapsed")
             _knob_label(T.SLIDER_ECO, _t("HELP_ECO", ""))
-    with a3:
-        with st.container(border=True):
+        with a3:
             ally = st.toggle(" ", value=False, key="k_ally",
                              label_visibility="collapsed")
             _knob_label(T.TOGGLE_ALLY, _t("HELP_ALLY", ""))
@@ -345,25 +333,29 @@ def render_console():
         f'<div class="panel-t">{_t("CONSOLE_ENV_TITLE", "牌面与环境")}'
         f'　<span class="panel-s">{_t("CONSOLE_ENV_HINT", "")}</span></div></div>',
         unsafe_allow_html=True)
-    e1, e2, e3, e4 = st.columns([1.2, 1.4, 2, 2], gap="medium")
-    with e1:
-        city = st.selectbox("城市 / 选址", cities, format_func=cn_of, key="k_city",
-                            help=_t("HELP_CITY", ""))
-    with e2:
-        quad = st.selectbox("战略象限", quads,
-                            format_func=lambda x: T.QUAD_CELL[x]["short"], key="k_quad",
-                            help=_t("HELP_QUAD", ""))
-    with e3:
-        shock = st.slider(_t("SLIDER_SHOCK", "关键原材料价格冲击（锂价冲击）%"),
-                          -30, 60, 0, step=5, key="k_shock",
-                          help=_t("HELP_SHOCK", ""))
-    with e4:
-        # 评判指标 = 纵轴用哪个指标。份额已是图 B 横轴，故不再作纵轴指标。
-        ruler_opts = [k for k in T.SCORER_NAMES if k != "share"]
-        scorer = st.radio(T.SCORER_LABEL, ruler_opts, horizontal=True,
-                          format_func=lambda s: T.SCORER_NAMES[s], key="k_ruler")
+    with st.container(border=True):            # 与「你的动作」同款框线
+        e1, e2, e3, e4 = st.columns([1.2, 1.4, 2, 2], gap="medium")
+        with e1:
+            city = st.selectbox("城市 / 选址", cities, format_func=cn_of, key="k_city",
+                                help=_t("HELP_CITY", ""))
+        with e2:
+            quad = st.selectbox("战略象限", quads,
+                                format_func=lambda x: T.QUAD_CELL[x]["short"], key="k_quad",
+                                help=_t("HELP_QUAD", ""))
+        with e3:
+            shock = st.slider(_t("SLIDER_SHOCK", "关键原材料价格冲击（锂价冲击）%"),
+                              -30, 60, 0, step=5, key="k_shock",
+                              help=_t("HELP_SHOCK", ""))
+        with e4:
+            # 评判指标 = 纵轴用哪个指标。份额已是图一横轴，故不再作纵轴指标。
+            ruler_opts = [k for k in T.SCORER_NAMES if k != "share"]
+            scorer = st.radio(T.SCORER_LABEL, ruler_opts, horizontal=True,
+                              format_func=lambda s: T.SCORER_NAMES[s], key="k_ruler",
+                              help=_t("SCORER_HELP", ""))
 
-    with st.expander(T.PRESET_TITLE, expanded=False):
+    with st.container(border=True):        # 与上面两组同款框线（原为无框 expander）
+        st.markdown(f'<div class="panel-t">{T.PRESET_TITLE}</div>',
+                    unsafe_allow_html=True)
         st.caption(T.PRESET_HINT)
         pcols = st.columns(len(T.PRESET_STRATEGIES))
         for col, (_pid, _p) in zip(pcols, T.PRESET_STRATEGIES.items()):
@@ -521,9 +513,9 @@ def render_self(k):
                 demand_shift=demand_shift, **dupont)
 
 
-# ══════════════════════════ 图 B/C 区（博弈）══════════════════════════
+# ══════════════════════════ 图一 / 图二 区（博弈）══════════════════════════
 def render_game(k):
-    """原 Phase 3：图 B 象限内竞争 / 图 C 跨象限竞合，并排。返回读数包（供简报）。"""
+    """原 Phase 3：图一 象限内竞争 / 图二 跨象限竞合，并排。返回读数包（供简报）。"""
     city, quad, scorer = k["city"], k["quad"], k["scorer"]
     _section("B", _t("SEC_B_TITLE", "B · 你和对手"),
              f"{T.P3_INTRO}　{_t('SEC_B_SUB', '')}")
@@ -576,9 +568,9 @@ def render_game(k):
     r2 = T.READOUT_C2.format(a=you2["a_value"], spread=T.fmt_pct(you2.get(scorer)),
                              ally=(T.READOUT_ALLY if k["ally"] else ""))
     col_a, col_b = st.columns(2)
-    col_a.markdown(f"**{_t('READOUT_TITLE_C1', '图 B 读数 · 象限内竞争')}**"); col_a.write(r1)
+    col_a.markdown(f"**{_t('READOUT_TITLE_C1', '图一读数 · 象限内竞争')}**"); col_a.write(r1)
     col_a.caption(f"竞争类型：{T.COMPETITION_CN[c1['competition_type']]}（θ={C.THETA_Q[quad]}）")
-    col_b.markdown(f"**{_t('READOUT_TITLE_C2', '图 C 读数 · 区域 / 全国竞合')}**"); col_b.write(r2)
+    col_b.markdown(f"**{_t('READOUT_TITLE_C2', '图二读数 · 区域 / 全国竞合')}**"); col_b.write(r2)
 
     return dict(verdict=v, share=you1["share"], spread_game=you1["spread"],
                 a_value=you2["a_value"], in_alliance=you2["in_alliance"],
