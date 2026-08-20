@@ -445,8 +445,13 @@ def render_self(k):
                   help=T.tip("roe"))
         m2.metric(T.label("spread"), (f"{spr_end:+.1%}" if spr_end is not None else "—"),
                   help=T.tip("spread"))
-        m3.metric("β / γ 采用", f"{res['beta_used']:.2f} / {res['gamma_used']:.2f}")
-        m4.metric("象限", quad)
+        # β/γ 是恢复出来的系数，光给数值没有意义 → 悬浮里给人话解释
+        m3.metric("价格弹性 β / 成本传导 γ",
+                  f"{res['beta_used']:.2f} / {res['gamma_used']:.2f}",
+                  help=f"**β · 价格弹性**：{T.PARAM_BETA_DESC}\n\n"
+                       f"**γ · {_t('PARAM_GAMMA_DESC', '成本传导刚性')}**\n\n"
+                       f"两者均由 nev.db 回归恢复，非手填。")
+        m4.metric("当前象限", T.QUAD_CELL[quad]["short"], help=_t("HELP_QUAD", ""))
         if spr_end is not None:
             v = f"{abs(spr_end) * 100:.0f}"
             if spr_end > 0:
@@ -469,7 +474,8 @@ def render_self(k):
             cash_and_equivalents=bb["cash_and_equivalents"], quadrant=quad,
             tax_rate=bb["tax_rate"])
         if T.DUPONT_FORMULA:
-            st.caption(T.DUPONT_FORMULA)
+            # 与下方三个指标同级：这是本段的分解式，不是脚注
+            st.markdown(f"**{T.DUPONT_FORMULA}**")
         d1, d2, d3 = st.columns(3)
         d1.metric(T.label("net_margin"), f"{dm['net_margin']:+.1%}", help=T.tip("net_margin"))
         d2.metric(T.label("asset_turnover"), f"{dm['asset_turnover']:.2f}",
