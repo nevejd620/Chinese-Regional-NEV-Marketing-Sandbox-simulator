@@ -388,8 +388,8 @@ def render_self(k):
     prev = st.session_state.get(skey)
 
     _section("A", _t("SEC_A_TITLE", "A · 你自己"), _t("SEC_A_SUB", ""))
-    st.caption(f"基准 ROE：`{config['baseline'][city]['roe_base']:+.1%}`"
-               "　（基准财报取该城基线；象限只切换资本成本口径）")
+    st.caption(_t("SEC_A_BASE_NOTE", "基准 ROE：`{v}`").format(
+        v=f"{config['baseline'][city]['roe_base']:+.1%}"))
 
     g1, g2 = st.columns(2, gap="large")
     with g1:
@@ -821,6 +821,42 @@ def render_brief(k, self_read, game_read):
 
 
 # ══════════════════════════ 沙盘主页 ══════════════════════════
+def _as_float(x):
+    """spread 可能是 float，也可能已格式化成 '+10.5%' 字符串——两种都吃。"""
+    if x is None:
+        return None
+    if isinstance(x, str):
+        try:
+            return float(x.replace("%", "").replace("+", "").strip()) / 100.0
+        except ValueError:
+            return None
+    try:
+        f = float(x)
+    except (TypeError, ValueError):
+        return None
+    return None if f != f else f          # NaN → None（§C4 容错：IC≤0 时为 NaN）
+
+
+def _is_initial(k):
+    """四个控件是否全在初始位：定价 0 / 生态投资 0 / 联盟关 / 冲击 0。
+
+    城市、象限、评估指标不计入——它们是「牌面」与「显示开关」，不是动作
+    （宪章 §6 修订：动作预算只约束「我的动作」组）。换城市≠做了决定。
+    """
+    return (not k.get("price_pct") and not k.get("eco")
+            and not k.get("ally") and not k.get("shock"))
+
+
+def _sign_conflict(a, b, eps=1e-9):
+    """两套口径是否一正一负。任一缺失/NaN → 不判冲突（宁可不说，不可说错）。"""
+    fa, fb = _as_float(a), _as_float(b)
+    if fa is None or fb is None:
+        return False
+    if abs(fa) < eps or abs(fb) < eps:
+        return False
+    return (fa > 0) != (fb > 0)
+
+
 def render_sandbox():
     st.caption("选址禀赋 → 象限战略 → 定价博弈 → 财务价值裁决 · "
                "系数由 nev.db 回归恢复，非手填")
@@ -835,7 +871,17 @@ def render_sandbox():
 
     # ── 首屏一句人话结论：以博弈四态裁决为准（它含名次，信息量最大）──
     with headline:
-        st.markdown(f"### {T.verdict_sentence(game_read['verdict'])}")
+        if _is_initial(k):
+            # 用户还没拨过任何控件 → 不下裁决，只描述牌面并召唤动作
+            st.markdown(_t("HEADLINE_BASELINE", "### 起点：{city} · {quad}").format(
+                city=cn_of(k["city"]),
+                quad=T.QUAD_CELL[k["quad"]]["short"]))
+        else:
+            st.markdown(f"### {T.verdict_sentence(game_read['verdict'])}")
+            # 两套口径（自身锚基线财报 / 裁决锚象限单位经济）符号可以相反。
+            # DUAL_BASIS_NOTE 在简报末尾与 About，但矛盾出现在首屏，故此处即时点破。
+            if _sign_conflict(self_read.get("spread_end"), game_read.get("spread_game")):
+                st.caption(_t("DUAL_BASIS_HINT", ""))
 
     # ── C 段 · 商业分析简报（Phase 4）──
     render_brief(k, self_read, game_read)
