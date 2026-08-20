@@ -15,7 +15,7 @@ Phase 4 归并版：原「Phase 2 财务解剖」与「Phase 3 定价博弈」�
 - 「碳酸锂价格冲击」更名「关键原材料价格冲击（锂价冲击）」：通用名主标签 + NEV 别名进括号，
   落实宪章 §5 唯一红线（基座只认通用名）。它是**外生环境**、不是你的动作，故移出动作组。
 - 控制台分两组：**我的动作**（定价 / 生态投资 / 联盟，守 ≤3）与
-  **牌面与环境**（城市 / 象限 / 外生冲击 / 记分尺子，不占动作预算，见宪章 §10.2 修订）。
+  **牌面与环境**（城市 / 象限 / 外生冲击 / 评判指标，不占动作预算，见宪章 §10.2 修订）。
 - 版面：结论前置 → 控制台 → 图A（我自己·上下双线）→ 图B|图C（并排·打价格 vs 结生态）
         → 总裁办简报（Phase 4 占位）→ 折叠区（象限地图 / 参数恢复表 / 诚实声明）。
 
@@ -46,13 +46,53 @@ CITY_CN = {"Shanghai": "上海", "Shenzhen": "深圳", "Hefei": "合肥",
            "Changzhou": "常州", "Xian": "西安", "Liuzhou": "柳州"}
 cn_of = lambda r: CITY_CN.get(r, r)
 
-# 图二散点按象限上色（上排 Premium 用暖色系、下排 Mass 用冷色系，与象限地图的行向一致）
-QUAD_COLOR = {
-    "Q1": "#8E5BD0",   # 高端 · 纯电
-    "Q2": "#C9457E",   # 高端 · 多路线
-    "Q3": "#2E8B78",   # 中低端 · 多路线
-    "Q4": "#3B7DD8",   # 中低端 · 纯电
-}
+# 四象限色板：**单一真相源在 copy_cn.QUAD_COLOR**，象限地图与图 C 共用，
+# 保证卡片颜色与散点颜色一一对应（此前两处各写一套，对不上号）。
+QUAD_COLOR = getattr(T, "QUAD_COLOR", {
+    "Q1": "#0E9BAE", "Q2": "#6F5BD6", "Q3": "#0E9F6E", "Q4": "#E5A017"})
+SECTION_COLOR = getattr(T, "SECTION_COLOR", {
+    "A": "#12A47A", "B": "#0E9BAE", "C": "#6F5BD6"})
+
+
+def _inject_css():
+    """全局样式：圆角、卡片阴影、分区色带。主题色在 .streamlit/config.toml。"""
+    st.markdown("""
+    <style>
+      /* 卡片：圆角 + 轻描边 + 极淡阴影，替代默认的直角灰框 */
+      div[data-testid="stVerticalBlockBorderWrapper"] {
+          border-radius: 14px !important;
+          border: 1px solid rgba(18,164,122,.18) !important;
+          box-shadow: 0 1px 3px rgba(20,38,31,.05);
+      }
+      /* 折叠面板、输入框、按钮统一圆角 */
+      details, div[data-testid="stExpander"] { border-radius: 12px !important; }
+      .stButton > button, .stDownloadButton > button,
+      .stTextInput input, .stSelectbox div[data-baseweb="select"] > div {
+          border-radius: 10px !important;
+      }
+      /* 分区标题：左侧色带 + 浅色底，做视觉引导 */
+      .sec-head {
+          border-left: 5px solid var(--accent);
+          background: linear-gradient(90deg, var(--tint), transparent 65%);
+          padding: .55rem .9rem; border-radius: 0 12px 12px 0; margin: .2rem 0 .1rem;
+      }
+      .sec-head .t { font-size: 1.12rem; font-weight: 700; color: #14261F; }
+      .sec-head .s { font-size: .84rem; color: #5A6B64; margin-top: .15rem; }
+      /* 控制台两组之间的呼吸位 */
+      .grp-gap { height: 1.4rem; }
+      /* 开关与滑块基线对齐（滑块比开关多一行数值） */
+      .tgl-pad { height: 1.55rem; }
+    </style>""", unsafe_allow_html=True)
+
+
+def _section(key, title, sub=""):
+    """带色带的分区标题。key ∈ {A,B,C}，颜色取自 copy_cn.SECTION_COLOR。"""
+    accent = SECTION_COLOR.get(key, "#12A47A")
+    tint = accent + "1F"                      # 同色 12% 透明度做底纹
+    sub_html = f'<div class="s">{sub}</div>' if sub else ""
+    st.markdown(
+        f'<div class="sec-head" style="--accent:{accent};--tint:{tint}">'
+        f'<div class="t">{title}</div>{sub_html}</div>', unsafe_allow_html=True)
 
 # 归并用的两个展示层常数（**不属引擎**，只是把一根旋钮接到两台引擎上）：
 PRICE_RANGE = (-30, 15)      # 合一后的定价区间，取 P3 口径（预设战略按此标定）
@@ -111,7 +151,7 @@ def _panel(days, p05, p50, p95, prev_p50, color, rgba, y_title,
 
 # ══════════════════════════ 图 B / 图 C · 博弈散点 ══════════════════════════
 def _fig_arena(c1, y_key, y_lab):
-    """图 B · 象限内竞争：份额 × 记分尺子（纯竞争、无联盟）。"""
+    """图 B · 象限内竞争：份额 × 评判指标（纯竞争、无联盟）。"""
     fig = go.Figure()
     xs = [p["share"] for p in c1["points"]]
     ys = [p.get(y_key) for p in c1["points"]]
@@ -135,7 +175,7 @@ def _fig_arena(c1, y_key, y_lab):
 
 
 def _fig_eco(c2, y_key, y_lab):
-    """图 C · 区域/全国竞合：非价格吸引力 × 记分尺子（跨象限、联盟连边）。"""
+    """图 C · 区域/全国竞合：非价格吸引力 × 评判指标（跨象限、联盟连边）。"""
     fig = go.Figure()
     pt_by_id = {p["firm_id"]: p for p in c2["points"]}
     for e in c2["edges"]:
@@ -204,8 +244,11 @@ def render_console():
                         help=_t("HELP_ECO", ""))
     with a3:
         st.markdown(T.TOGGLE_ALLY)
+        # 滑块比开关多一行数值文本，补等高的占位块，让开关与滑块轨道同高
+        st.markdown('<div class="tgl-pad"></div>', unsafe_allow_html=True)
         ally = st.toggle(" ", value=False, key="k_ally", label_visibility="collapsed")
 
+    st.markdown('<div class="grp-gap"></div>', unsafe_allow_html=True)
     st.markdown(f"**{_t('CONSOLE_ENV_TITLE', '牌面与环境')}**"
                 f"　:gray[{_t('CONSOLE_ENV_HINT', '（不是你的动作：牌面是给定的，冲击是外生的）')}]")
     e1, e2, e3, e4 = st.columns([1.2, 1.4, 2, 2], gap="large")
@@ -221,7 +264,7 @@ def render_console():
                           -30, 60, 0, step=5, key="k_shock",
                           help=_t("HELP_SHOCK", ""))
     with e4:
-        # 记分尺子 = 纵轴用哪把量尺。份额已是图 B 横轴，不再作纵轴尺子。
+        # 评判指标 = 纵轴用哪个指标。份额已是图 B 横轴，故不再作纵轴指标。
         ruler_opts = [k for k in T.SCORER_NAMES if k != "share"]
         scorer = st.radio(T.SCORER_LABEL, ruler_opts, horizontal=True,
                           format_func=lambda s: T.SCORER_NAMES[s], key="k_ruler")
@@ -275,9 +318,7 @@ def render_self(k):
     skey = f"prev::{city}"
     prev = st.session_state.get(skey)
 
-    st.markdown(f"#### {_t('SEC_A_TITLE', 'A · 你自己：账面赚不赚，价值创没创造')}")
-    if _t("SEC_A_SUB", ""):
-        st.caption(_t("SEC_A_SUB", ""))
+    _section("A", _t("SEC_A_TITLE", "A · 你自己"), _t("SEC_A_SUB", ""))
     st.caption(f"基准 ROE：`{config['baseline'][city]['roe_base']:+.1%}`"
                "　（基准财报取该城基线；象限只切换资本成本口径）")
 
@@ -365,8 +406,28 @@ def render_self(k):
 def render_game(k):
     """原 Phase 3：图 B 象限内竞争 / 图 C 跨象限竞合，并排。返回读数包（供简报）。"""
     city, quad, scorer = k["city"], k["quad"], k["scorer"]
-    st.markdown(f"#### {_t('SEC_B_TITLE', 'B · 你和对手：打价格战，还是结生态')}")
-    st.caption(f"{T.P3_INTRO}　{_t('SEC_B_SUB', '')}")
+    _section("B", _t("SEC_B_TITLE", "B · 你和对手"),
+             f"{T.P3_INTRO}　{_t('SEC_B_SUB', '')}")
+
+    # 当前象限提示 + 就地回看象限地图。
+    # Streamlit 无法用程序切 tab，所以不做假链接：用 popover 把地图原地弹出来，
+    # 比"点了跳不过去"的超链接诚实，也少一次来回。
+    qc = QUAD_COLOR.get(quad, "#12A47A")
+    h1, h2 = st.columns([3, 1])
+    with h1:
+        st.markdown(
+            _t("CURRENT_QUAD_HINT", "当前所在象限：{quad}").format(
+                quad=f'<span style="color:{qc};font-weight:700">'
+                     f'{T.QUAD_CELL[quad]["short"]}</span>'),
+            unsafe_allow_html=True)
+    with h2:
+        label = _t("QUAD_MAP_POPOVER", "查看象限地图")
+        if hasattr(st, "popover"):
+            with st.popover(label, use_container_width=True):
+                render_quadrant_map(highlight=quad, compact=True, show_play=True)
+        else:                                   # 老版本 Streamlit 降级
+            with st.expander(label, expanded=False):
+                render_quadrant_map(highlight=quad, compact=True, show_play=True)
 
     p0 = game.build_user_firm(city, quad)["p0"]
     user_price = p0 * (1.0 + k["price_pct"] / 100.0)
@@ -416,10 +477,19 @@ def _quad_stats(q):
 
 def _quad_card(col, q, highlight=None, compact=False, show_play=True):
     cell = T.QUAD_CELL[q]
+    color = QUAD_COLOR.get(q, "#12A47A")
     with col.container(border=True):
-        st.markdown(f"**{cell['name']}**")
+        # 卡片标题用该象限的颜色 —— 与图 C 散点同色，一眼能对上号
+        st.markdown(
+            f'<div style="border-left:4px solid {color};padding-left:.5rem;'
+            f'font-weight:700;color:{color}">{cell["name"]}</div>',
+            unsafe_allow_html=True)
         if q == highlight:
-            st.markdown(":blue-background[◀ 你选的象限]")
+            st.markdown(
+                f'<div style="display:inline-block;margin:.35rem 0;padding:.1rem .5rem;'
+                f'border-radius:8px;background:{color}22;color:{color};'
+                f'font-size:.8rem;font-weight:600">◀ 你选的象限</div>',
+                unsafe_allow_html=True)
         if compact:
             if show_play:
                 st.caption(f"打法 · {cell['play']}")
@@ -508,9 +578,7 @@ def render_brief(k, self_read, game_read):
     而模型手里没有算式，只能编 —— 那正是红线要防的（宪章：非自由聊天框，
     由用户动作触发）。想换个说法，就回上面拨旋钮重生成。
     """
-    st.markdown(f"#### {_t('SEC_C_TITLE', 'C · 商业分析')}")
-    if _t("BRIEF_INTRO", ""):
-        st.caption(_t("BRIEF_INTRO", ""))
+    _section("C", _t("SEC_C_TITLE", "C · 商业分析"), _t("BRIEF_INTRO", ""))
 
     # ── 框一 / 框二：并排一行 ──
     c1, c2 = st.columns([3, 1], gap="large")
@@ -598,6 +666,7 @@ def render_sandbox():
 
 
 # ══════════════════════════ 单一入口 · 两 tab ══════════════════════════
+_inject_css()
 st.title("新能源汽车区域选址 · 定价博弈沙盘")
 
 tab_quad, tab_sandbox = st.tabs(["象限地图", "沙盘 · 定价博弈与价值裁决"])

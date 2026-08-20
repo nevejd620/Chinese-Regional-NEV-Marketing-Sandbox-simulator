@@ -1,0 +1,17 @@
+# NEV 沙盘 · Streamlit Cloud 主题与服务设置
+# 配色主题：绿色科技（deep teal + emerald），呼应新能源与清洁技术。
+# 四象限色板【不在此处】—— 见 copy_cn.QUAD_COLOR，象限地图与图 C 共用同一处定义。
+
+[theme]
+primaryColor            = "#12A47A"   # 主色：翡翠绿，用于按钮、滑块、选中态
+backgroundColor         = "#FAFCFB"   # 页面底：极浅冷白，带一丝绿调
+secondaryBackgroundColor = "#EDF4F1"  # 卡片/侧栏：浅灰绿
+textColor               = "#14261F"   # 正文：深墨绿，比纯黑柔和
+font                    = "sans serif"
+
+[server]
+headless   = true
+fileWatcherType = "auto"
+
+[browser]
+gatherUsageStats = false

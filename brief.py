@@ -140,7 +140,7 @@ class Readout:
             "价值利差": ("为正" if (self.spread_end or 0) > 0 else "为负"),
             "份额名次": str(self.share_rank),
             "价值名次": str(self.spread_rank),
-            "记分尺子": self.ruler_cn,
+            "评判指标": self.ruler_cn,
             "竞争类型": self.competition_cn,
         }
 
@@ -418,12 +418,12 @@ def fallback_slots(r: Readout) -> dict:
                     f"账面回报{lab['账面回报']}，价值利差{lab['价值利差']}，"
                     f"份额名次 {v['share_rank']}、价值名次 {v['spread_rank']}。"),
         "combined": (f"几个动作合起来看，本局落在「{lab['裁决态']}」这一态；"
-                     f"当前记分尺子为{v['ruler']}，竞争类型为{v['competition']}。"),
+                     f"当前评判指标为{v['ruler']}，竞争类型为{v['competition']}。"),
         "policy_view": "（本段需要调用模型生成，当前使用引擎读数版简报。）",
         "compete_view": "（本段需要调用模型生成，当前使用引擎读数版简报。）",
         "conclusion": (f"综合本轮读数：账面回报{lab['账面回报']}、"
                        f"价值利差{lab['价值利差']}。"
-                       f"是否继续沿当前方向加码，取决于你用哪把尺子记分。"),
+                       f"是否继续沿当前方向加码，取决于你用哪一项评判指标。"),
     }
 
 
