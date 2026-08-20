@@ -563,6 +563,9 @@ def to_markdown(rep: dict) -> str:
     para2 = "".join(x for x in (s.get("combined", ""), s.get("conclusion", "")) if x)
     parts = [para1, para2,
              f"_{_T('BRIEF_TAIL_HINT', '完整版见导出文档。')}_"]
+    note = _T("DUAL_BASIS_NOTE", "")
+    if note:
+        parts.append(f":gray[{note}]")            # 两套口径的诚实标注
     if rep["cites"]:
         srcs = []
         for c in rep["cites"]:
@@ -725,6 +728,8 @@ def to_docx(rep: dict, path: str | Path) -> Path:
         for i, x in enumerate(seen, 1):
             _para(doc, f"[{i}] {x}", 9, level=3, latin="Arial")
 
+    if _T("DUAL_BASIS_NOTE", ""):
+        _para(doc, _T("DUAL_BASIS_NOTE", ""), 9, level=3, latin="Arial")
     _para(doc, _T("BRIEF_DISCLAIMER",
                   "本简报中的全部数值均由确定性引擎计算并直接填入，"
                   "语言模型仅负责组织措辞、不参与任何计算。"

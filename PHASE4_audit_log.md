@@ -210,10 +210,21 @@ v1 用 `象限 × 裁决态` 作两个视角共同的检索键。首轮构建诊
 3. **`LLM_MAX_TOKENS` 实测教训**：初设 2000 会把五段中文的 JSON 截断在半截，且 `finish_reason` 报 `stop` 具有误导性。现为 4000。换模型时需重验。
 4. **JSON 解析三级兜底**：GLM 常在 JSON 外裹说明文字或围栏，仅剥围栏不够。现为 直接解析 → 剥围栏 → 取最外层 `{...}`；并优先使用 `response_format={"type":"json_object"}`（不支持则自动退回）。
 5. **Python 版本缝隙**：f-string 内表达式跨行需 ≥3.12（PEP 701），而 Cloud 钉 3.11 → 本地编译通过、线上 SyntaxError。已全库扫除。**此类问题本地验不出来**，记此备查。
-6. **Phase 3 及以前的遗留继续挂**：税 bug（数值层，搭车下次 Phase 0 重跑修）· γ 8/10（Shanghai/Xian）· schema 中自研分/换电网络/BOM 成本链有意未接入引擎（Phase 4 的 RAG 可用作叙事素材，**不得据此改动引擎数字**）。
-7. **`ensure_db()` 判据**：建议改为"存在**且有表**"（仓库内 `nev.db` 可能为空壳）。属修 bug、边际成本近零。
-8. **移动端**：象限地图用 `st.columns([1, 0.06, 1])` 夹中轴线，窄屏下中间列会被挤没。桌面端无碍。
-9. **API Key 安全**：Key 存 `st.session_state`、`type="password"`、不落盘不进 Git。构建期 key 走环境变量 + `getpass`，**不得写进 notebook**（`Individual_Assignment2.ipynb` 里那把硬编码的 Anthropic key 应吊销重发）。
+6. **两套 spread 口径不统一（横跨 P2/P3，Phase 4 首次暴露）**：
+   `simulate → financials.spread_line` 的价值利差锚在**该城市的基线财报**；
+   `game.py` 内部裁决用的 spread 锚在**象限的 ASP/毛利设定**。二者基数不同，
+   **绝对符号可以相反**——实测缓存里出现「裁决＝创造价值且领先」而「价值利差 −20.3%」。
+   非 Phase 4 引入：`app.py` 一直是首屏裁决取自 game、A 段利差取自 financials，
+   只是原来分居两 tab、无人并排读；合页与简报把两者放进同一段，矛盾才显形。
+   **处置（方案一，已实施）**：简报把两者**分开表述**——「自身这本账（相对该城基线财报）」
+   与「同象限的相对位置」各一句，并加 `DUAL_BASIS_NOTE` 诚实标注：
+   前者回答"你自己赚不赚"，后者回答"你比对手强不强"。
+   **未采纳**：改 `game.py` 裁决逻辑去对齐 financials（会推翻 Phase 3 四态裁决定义，撞变更闸门）。
+   与 `PHASE2_audit_log` §G2「口径不统一」同源，属结构层已知简化，诚实标注而非掩盖。
+7. **Phase 3 及以前的遗留继续挂**：税 bug（数值层，搭车下次 Phase 0 重跑修）· γ 8/10（Shanghai/Xian）· schema 中自研分/换电网络/BOM 成本链有意未接入引擎（Phase 4 的 RAG 可用作叙事素材，**不得据此改动引擎数字**）。
+8. **`ensure_db()` 判据**：建议改为"存在**且有表**"（仓库内 `nev.db` 可能为空壳）。属修 bug、边际成本近零。
+9. **移动端**：象限地图用 `st.columns([1, 0.06, 1])` 夹中轴线，窄屏下中间列会被挤没。桌面端无碍。
+10. **API Key 安全**：Key 存 `st.session_state`、`type="password"`、不落盘不进 Git。构建期 key 走环境变量 + `getpass`，**不得写进 notebook**（`Individual_Assignment2.ipynb` 里那把硬编码的 Anthropic key 应吊销重发）。
 
 ---
 
