@@ -6,6 +6,40 @@
 
 **🔗 [在线试玩](https://chinese-regional-nev-marketing-sandbox-simulator-3lpxhv6sebdda.streamlit.app/)**（免费部署，12 小时无访问会休眠，首次打开需等约 30 秒唤醒）
 
+<details>
+<summary><b>English summary</b> (UI is in Chinese)</summary>
+
+<br>
+
+An interactive pricing sandbox for China's regional NEV (new-energy vehicle) market.
+Core thesis: **winning volume ≠ winning value**.
+
+Pick a city (factor endowment) and a strategy quadrant, then run a price war — and watch
+yourself take the #1 market-share position while your economic value spread goes deeply
+negative. Same round, different yardstick, opposite verdict.
+
+**What makes it more than a toy**: the data is synthetic, but the behavioural parameters —
+price elasticity β and cost pass-through γ — are **planted in the data-generating process
+and then recovered by regression**. The recovery table (estimate vs. planted truth, with
+confidence intervals) ships inside the app. That is something real-world data cannot
+give you: **verifiable parameters**. Nine real automakers serve only as qualitative
+anchors for the quadrants; they are not used to calibrate any number.
+
+**Structure**: a deterministic 180-day engine with Monte-Carlo bands → DuPont
+decomposition → ROIC vs. market-value-weighted WACC → value spread; a Logit share model
+with best-response pricing and a slow ecosystem/alliance layer; and a retrieval-augmented
+briefing where **financial figures never enter the prompt** — numbers travel as
+pre-formatted strings into template slots, text comes from retrieval, and the two only
+meet at the render layer.
+
+**Stack**: Python · Streamlit · statsmodels · Plotly · NumPy/pandas · SQLite
+
+**Note**: the interface, the verdict copy, and the generated briefings are all in Chinese.
+The five-step walkthrough below is the fastest way in even without reading Chinese —
+the charts and rankings carry most of the argument on their own.
+
+</details>
+
 ---
 
 ## 30 秒看懂
