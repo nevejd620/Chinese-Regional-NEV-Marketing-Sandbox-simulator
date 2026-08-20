@@ -289,6 +289,16 @@ def _fig_eco(c2, y_key, y_lab, quad=None):
 
 
 # ══════════════════════════ 控制台 ══════════════════════════
+def _is_initial(k):
+    """四个控件是否全在初始位：定价 0 / 生态投资 0 / 联盟关 / 冲击 0。
+
+    城市、象限、评估指标不计入——它们是「牌面」与「显示开关」，不是动作
+    （宪章 §6 修订：动作预算只约束「我的动作」组）。换城市≠做了决定。
+    """
+    return (not k.get("price_pct") and not k.get("eco")
+            and not k.get("ally") and not k.get("shock"))
+
+
 def render_console():
     """一页一个控制台。返回全部旋钮/牌面状态（同时也是 Phase 4 简报的动作快照来源）。"""
     quads = list(C.QUAD_PROFILE.keys())
@@ -311,6 +321,8 @@ def render_console():
             _knob_label(T.SLIDER_ECO, _t("HELP_ECO", ""))
     with a3:
         with st.container(border=True):
+            # 滑块上方自带一行数值(≈1.5rem)，开关没有 → 补等高占位，三卡才齐
+            st.markdown('<div style="height:1.5rem"></div>', unsafe_allow_html=True)
             ally = st.toggle(" ", value=False, key="k_ally",
                              label_visibility="collapsed")
             _knob_label(T.TOGGLE_ALLY, _t("HELP_ALLY", ""))
@@ -355,18 +367,24 @@ def render_console():
         if _act:
             st.caption(f"当前预设：**{T.PRESET_STRATEGIES[_act]['name']}**（继续拨旋钮即可自由微调）")
 
-        # 一键回到起点：只清「我的动作」三旋钮 + 外生冲击。
-        # 城市 / 象限 / 评估指标保留——它们是牌面与显示开关，不是决策（P5.7）。
-        # 清完四项后 _is_initial 成立 → 首屏自动退回起点句，闭环。
-        st.divider()
-        if st.button(_t("RESET_LABEL", "↺ 回到起点"), key="reset_knobs"):
-            st.session_state["k_price"] = 0
-            st.session_state["k_eco"] = 0.0
-            st.session_state["k_ally"] = False
-            st.session_state["k_shock"] = 0
-            st.session_state.pop("preset_active", None)
-            st.rerun()
-        st.caption(_t("RESET_HINT", ""))
+
+    # 一键回到起点：只清「我的动作」三旋钮 + 外生冲击。
+    # 城市 / 象限 / 评估指标保留——牌面与显示开关不是决策（P5.7）。
+    # 清完四项后 _is_initial 成立 → 首屏自动退回起点句，闭环。
+    # 注意：必须放在 expander 之外，否则默认收起 = 等于没有。
+    if not _is_initial(dict(price_pct=price_pct, eco=eco, ally=ally, shock=shock)):
+        r1, r2 = st.columns([1, 4])
+        with r1:
+            if st.button(_t("RESET_LABEL", "↺ 回到起点"), key="reset_knobs",
+                         use_container_width=True):
+                st.session_state["k_price"] = 0
+                st.session_state["k_eco"] = 0.0
+                st.session_state["k_ally"] = False
+                st.session_state["k_shock"] = 0
+                st.session_state.pop("preset_active", None)
+                st.rerun()
+        with r2:
+            st.caption(_t("RESET_HINT", ""))
 
     return dict(city=city, quad=quad, price_pct=price_pct, eco=eco,
                 ally=ally, shock=shock, scorer=scorer)
@@ -848,16 +866,6 @@ def _as_float(x):
     except (TypeError, ValueError):
         return None
     return None if f != f else f          # NaN → None（§C4 容错：IC≤0 时为 NaN）
-
-
-def _is_initial(k):
-    """四个控件是否全在初始位：定价 0 / 生态投资 0 / 联盟关 / 冲击 0。
-
-    城市、象限、评估指标不计入——它们是「牌面」与「显示开关」，不是动作
-    （宪章 §6 修订：动作预算只约束「我的动作」组）。换城市≠做了决定。
-    """
-    return (not k.get("price_pct") and not k.get("eco")
-            and not k.get("ally") and not k.get("shock"))
 
 
 def _sign_conflict(a, b, eps=1e-9):
