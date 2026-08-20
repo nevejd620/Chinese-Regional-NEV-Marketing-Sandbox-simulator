@@ -554,8 +554,10 @@ def render_brief(k, self_read, game_read):
 
         # 导出：与屏上【同源同字】，不二次调用模型 —— 看到的即下载到的
         try:
-            path = brief.to_docx(rep, Path("/tmp") / f"brief_{rep['trigger_key']
-                                                            .replace('|', '_')}.docx")
+            # 注意：f-string 内的表达式不可跨行（Python < 3.12 会 SyntaxError，
+            # 而 Cloud 钉的是 3.11）→ 先算好文件名再拼路径。
+            stem = rep["trigger_key"].replace("|", "_")
+            path = brief.to_docx(rep, Path("/tmp") / f"brief_{stem}.docx")
             st.download_button(
                 _t("BRIEF_DOWNLOAD", "下载 Word 简报"), data=path.read_bytes(),
                 file_name=f"商业分析简报_{cn_of(k['city'])}_{k['quad']}.docx",
