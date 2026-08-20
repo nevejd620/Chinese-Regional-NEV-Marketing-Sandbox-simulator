@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="2480" viewBox="0 0 1180 2480" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="2480" viewBox="0 0 1180 2528" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif">
   <defs>
     <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
       <path d="M2 1 L8 5 L2 9" fill="none" stroke="#5F5E5A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -51,7 +51,7 @@
   <text x="804" y="298" font-size="13" fill="#333">  → 恢复 β/γ/b → 写入 JSON</text>
   <text x="804" y="322" font-size="13" fill="#333">  → 参数恢复表（真值 vs 估计）</text>
   <text x="804" y="352" font-size="13.5" font-weight="700" fill="#0F6E56">在线推演（每次交互）</text>
-  <text x="804" y="374" font-size="13" fill="#333">  180 天快慢两层引擎 + 四把 reward</text>
+  <text x="804" y="374" font-size="13" fill="#333">  180 天快慢两层引擎 + 多把评估指标</text>
   <text x="804" y="406" font-size="12" fill="#6B6A66" font-style="italic">数据流方向：标定 SQL→JSON；推演读 JSON</text>
 
   <!-- arrows between the three -->
@@ -138,8 +138,8 @@
   <rect x="72" y="1210" width="512" height="44" rx="8" fill="#E6F5EF" stroke="#B4E0CE"/>
   <text x="86" y="1237" font-size="12.5" fill="#0F6E56">产出「损益宽表」：日期×战略×{份额,利润,EVA,生态,ROIC,WACC}</text>
   <rect x="72" y="1262" width="512" height="46" rx="8" fill="#FFF3E9" stroke="#F3CDA9"/>
-  <text x="86" y="1283" font-size="12.5" fill="#9A4B12">四把可切换 reward 尺子：份额 / 利润 / EVA / 生态</text>
-  <text x="86" y="1300" font-size="12" fill="#9A4B12" font-style="italic">存一次·切四次 → 排名翻转：赢销量 ≠ 赢价值</text>
+  <text x="86" y="1283" font-size="12.5" fill="#9A4B12">可切换评估指标：价值创造 / 股东回报 / 资本回报（份额＝图一横轴）</text>
+  <text x="86" y="1300" font-size="12" fill="#9A4B12" font-style="italic">存一次·换指标重看 → 排名翻转：赢销量 ≠ 赢价值</text>
 
   <!-- Track 2 -->
   <rect x="620" y="1026" width="512" height="300" rx="14" fill="#F4F3F0" stroke="#DAD8D2"/>
@@ -148,7 +148,7 @@
   <text x="644" y="1108" font-size="13" fill="#666">   (region, quadrant, strategy, shock)</text>
   <text x="644" y="1134" font-size="13" fill="#333">2. 查询重写 → 向量检索 + 硬过滤</text>
   <text x="644" y="1156" font-size="13" fill="#666">   WHERE region=… AND quadrant=…</text>
-  <text x="644" y="1182" font-size="13" fill="#333">3. 捞地方产业链文献（离线 .npy 嵌入 + numpy）</text>
+  <text x="644" y="1182" font-size="13" fill="#333">3. 捞地方产业链文献（离线 vecs.npz 嵌入 + numpy）</text>
   <text x="644" y="1208" font-size="13" fill="#333">4. 消费轨道一的确定性输出，只做解读</text>
   <rect x="644" y="1226" width="464" height="46" rx="8" fill="#EAF1FB" stroke="#B9D2F0"/>
   <text x="658" y="1247" font-size="12.5" fill="#0C447C">红线：LLM 幻觉永远够不到财务数字</text>
@@ -162,7 +162,7 @@
   <line x1="590" y1="1356" x2="590" y2="1380" stroke="#5F5E5A" stroke-width="1.6" marker-end="url(#ar)"/>
 
   <rect x="290" y="1382" width="600" height="54" rx="12" fill="#1F3864"/>
-  <text x="590" y="1408" font-size="14.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">汇合 · Agent 编排（DeepSeek）</text>
+  <text x="590" y="1408" font-size="14.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">汇合 · Agent 编排（glm-4-flash）</text>
   <text x="590" y="1426" font-size="12" fill="#C9D6EA" text-anchor="middle">[断裂 ROE/EVA 数值] + [地方文献] → 总裁办简报 → python-docx 导出</text>
 
   <!-- time-series generation note -->
@@ -233,15 +233,15 @@
   <text x="1040" y="2238" font-size="12" fill="#9A9892">时间 →</text>
 
   <rect x="48" y="2258" width="348" height="150" rx="14" fill="#E9F3EC" stroke="#BCDCC6" stroke-width="1"/>
-  <text x="70" y="2288" font-size="16" font-weight="700" fill="#1E6B3F">生产前 · 选址禅赋</text>
+  <text x="70" y="2288" font-size="16" font-weight="700" fill="#1E6B3F">生产前 · 选址禀赋</text>
   <text x="70" y="2310" font-size="12" fill="#2E7D4F">Phase 0–1 · 挑牌面（事前承诺）</text>
-  <text x="70" y="2336" font-size="12.5" fill="#333">要素禅赋决定你擅长哪个象限；</text>
+  <text x="70" y="2336" font-size="12.5" fill="#333">要素禀赋决定你擅长哪个象限；</text>
   <text x="70" y="2356" font-size="12.5" fill="#333">一次性、不可频繁改、沉没。</text>
   <text x="70" y="2385" font-size="12" fill="#1E6B3F" font-style="italic">此刻还没有对手 → 无博弈</text>
 
   <rect x="416" y="2258" width="348" height="150" rx="14" fill="#EAF1FB" stroke="#185FA5" stroke-width="1.6"/>
   <text x="438" y="2288" font-size="16" font-weight="700" fill="#0C447C">生产后 · 独自结算</text>
-  <text x="438" y="2310" font-size="12" fill="#185FA5">Phase 2 · 单企业绝对分析（本阶段）</text>
+  <text x="438" y="2310" font-size="12" fill="#185FA5">Phase 2 · 单企业绝对分析</text>
   <text x="438" y="2336" font-size="12.5" fill="#333">ROE + 杜邦三因子（赚得多不多）</text>
   <text x="438" y="2356" font-size="12.5" fill="#333">spread = ROIC − WACC（这份回报值不值）</text>
   <text x="438" y="2385" font-size="12" fill="#0C447C" font-style="italic">对自己照镜子 → 无对手 / 无排名 / 无散点</text>
@@ -256,7 +256,7 @@
   <line x1="396" y1="2333" x2="414" y2="2333" stroke="#5F5E5A" stroke-width="1.6" marker-end="url(#ar)"/>
   <line x1="764" y1="2333" x2="782" y2="2333" stroke="#5F5E5A" stroke-width="1.6" marker-end="url(#ar)"/>
 
-  <text x="48" y="2432" font-size="11.5" fill="#6B6A66" font-style="italic">区域内不博弈：选址先于博弈（事前）＋区域禅赋近似垄断（一区一象限） → 竞争只发生在全国·同象限之间，非区域内。</text>
+  <text x="48" y="2434" font-size="12.5" fill="#5B6B64"><tspan font-weight="700" fill="#8A5A12">Phase 4 · 后说</tspan>：Action-triggered RAG 简报 —— 解释已算定的结果，数字不进提示词　｜　<tspan font-weight="700" fill="#8A5A12">Phase 5 · 收尾</tspan>：演示路径 · 诚实声明 · 部署自举（ensure_db 降级路径）</text><text x="48" y="2480" font-size="11.5" fill="#6B6A66" font-style="italic">区域内不博弈：选址先于博弈（事前）＋区域禀赋近似垄断（一区一象限） → 竞争只发生在全国·同象限之间，非区域内。</text>
 
-  <text x="48" y="2456" font-size="11.5" fill="#9A9892">诚实声明：SQL 原子数据由 DGP 合成，行为系数为「设定并经回归恢复验证」，非真实市场实证发现；九公司仅作锚点参照。 · 落库门槛：仅人民币+中国口径入库。</text>
+  <text x="48" y="2504" font-size="11.5" fill="#9A9892">诚实声明：SQL 原子数据由 DGP 合成，行为系数为「设定并经回归恢复验证」，非真实市场实证发现；九公司仅作锚点参照。 · 落库门槛：仅人民币+中国口径入库。</text>
 </svg>
