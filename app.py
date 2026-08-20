@@ -34,6 +34,7 @@ import financials
 import game
 import config as C
 import copy_cn as T
+import brief
 
 st.set_page_config(page_title="NEV 沙盘 · 选址与定价博弈", layout="wide")
 
@@ -335,6 +336,7 @@ def render_self(k):
             st.warning(T.VERDICT_NA)
 
     # 基线杜邦（t0 结构解剖，静态）
+    dupont = {}
     bb = config["baseline"][city]
     if all(key in bb for key in ("total_revenue", "total_assets")):
         dm = financials.compute_value_metrics(
@@ -351,10 +353,12 @@ def render_self(k):
                   help=T.tip("asset_turnover"))
         d3.metric(T.label("equity_multiplier"), f"{dm['equity_multiplier']:.2f}",
                   help=T.tip("equity_multiplier"))
+        dupont = {kk: dm[kk] for kk in
+                  ("net_margin", "asset_turnover", "equity_multiplier")}
 
     return dict(roe_end=roe_end, spread_end=spr_end, has_ebit=has_ebit,
                 beta_used=res["beta_used"], gamma_used=res["gamma_used"],
-                demand_shift=demand_shift)
+                demand_shift=demand_shift, **dupont)
 
 
 # ══════════════════════════ 图 B/C 区（博弈）══════════════════════════
@@ -469,6 +473,104 @@ def render_appendix(quad):
         st.caption(T.PROXY_NOTE_P3)
 
 
+# ══════════════════════════ C 段 · 商业分析简报 ══════════════════════════
+def _pack_readout(k, self_read, game_read):
+    """把两台引擎【已经算好】的读数装进 brief.Readout。
+
+    🔴 这里只做搬运，不做任何计算 —— 简报里的每个数字都必须能在上方图表里
+       逐字对上。一旦在这里动算术，就等于凭空造了第二个真相源。
+    """
+    v = game_read["verdict"]
+    return brief.Readout(
+        city=k["city"], city_cn=cn_of(k["city"]),
+        quad=k["quad"], quad_cn=T.QUAD_CELL[k["quad"]]["short"],
+        price_pct=k["price_pct"], eco=k["eco"], ally=k["ally"], shock_pct=k["shock"],
+        ruler_cn=T.SCORER_NAMES.get(k["scorer"], k["scorer"]),
+        roe_base=config["baseline"][k["city"]]["roe_base"],
+        roe_end=self_read["roe_end"], spread_end=self_read["spread_end"],
+        beta_used=self_read["beta_used"], gamma_used=self_read["gamma_used"],
+        net_margin=self_read.get("net_margin"),
+        asset_turnover=self_read.get("asset_turnover"),
+        equity_multiplier=self_read.get("equity_multiplier"),
+        verdict_state=v.get("state", "CREATE"),
+        verdict_sentence=T.verdict_sentence(v),
+        share=game_read["share"], share_rank=v.get("share_rank", "—"),
+        spread_rank=v.get("spread_rank", "—"), spread_game=game_read["spread_game"],
+        a_value=game_read["a_value"], in_alliance=game_read["in_alliance"],
+        competition_cn=T.COMPETITION_CN.get(game_read["competition_type"], ""),
+    )
+
+
+def render_brief(k, self_read, game_read):
+    """框一 API Key ＋ 框二 生成（并排）→ 框三 输出区（独占一行，只读）。
+
+    框三只读、不接受追问：自由聊天会让用户去问"这个数字怎么算的"，
+    而模型手里没有算式，只能编 —— 那正是红线要防的（宪章：非自由聊天框，
+    由用户动作触发）。想换个说法，就回上面拨旋钮重生成。
+    """
+    st.markdown(f"#### {_t('SEC_C_TITLE', 'C · 商业分析')}")
+    if _t("BRIEF_INTRO", ""):
+        st.caption(_t("BRIEF_INTRO", ""))
+
+    # ── 框一 / 框二：并排一行 ──
+    c1, c2 = st.columns([3, 1], gap="large")
+    with c1:
+        api_key = st.text_input(
+            _t("APIKEY_LABEL", "您的 API Key"), type="password", key="k_apikey",
+            placeholder=_t("APIKEY_PLACEHOLDER", ""), help=_t("HELP_APIKEY", ""))
+        with st.expander(_t("APIKEY_STEPS_TITLE", "怎么获取 API Key？"), expanded=False):
+            st.markdown(_t("APIKEY_STEPS", ""))
+    with c2:
+        st.markdown("&nbsp;", unsafe_allow_html=True)     # 与输入框基线对齐
+        go = st.button(_t("BRIEF_BUTTON", "生成报告"), type="primary",
+                       use_container_width=True)
+
+    # ── 生成：仅在点击时调用；同一 trigger_key 本会话内命中缓存，不重复计费 ──
+    if go:
+        ro = _pack_readout(k, self_read, game_read)
+        sig = (ro.trigger_key(), k["city"], k["price_pct"], k["eco"],
+               k["ally"], k["shock"], bool(api_key))
+        if st.session_state.get("brief_sig") != sig:
+            with st.spinner(_t("BRIEF_SPINNER", "正在生成…")):
+                st.session_state["brief_rep"] = brief.build(ro, api_key=api_key)
+            st.session_state["brief_sig"] = sig
+
+    rep = st.session_state.get("brief_rep")
+
+    # ── 框三：输出区 ──
+    with st.container(border=True):
+        if rep is None:
+            st.caption("填好上面的 Key 后点「生成报告」；留空也可以点，会显示演示版。")
+            return
+
+        if rep["mode"] == "live":
+            st.caption(_t("BRIEF_MODE_LIVE", ""))
+        else:
+            st.warning(_t("BRIEF_MODE_FALLBACK", "以下为引擎读数版简报。"))
+            if rep.get("error"):
+                st.caption(f"{_t('BRIEF_ERROR_PREFIX', '调用未成功：')}{rep['error']}")
+
+        st.markdown(brief.to_markdown(rep))
+
+        # 导出：与屏上【同源同字】，不二次调用模型 —— 看到的即下载到的
+        try:
+            path = brief.to_docx(rep, Path("/tmp") / f"brief_{rep['trigger_key']
+                                                            .replace('|', '_')}.docx")
+            st.download_button(
+                _t("BRIEF_DOWNLOAD", "下载 Word 简报"), data=path.read_bytes(),
+                file_name=f"商业分析简报_{cn_of(k['city'])}_{k['quad']}.docx",
+                mime=("application/vnd.openxmlformats-officedocument"
+                      ".wordprocessingml.document"))
+        except ImportError:
+            st.caption("导出 Word 需要 python-docx：`pip install python-docx`")
+
+        # 对账留痕：被丢弃的句子如实显示（宪章 §2 目标③ 诚实可审计）
+        if rep.get("dropped"):
+            with st.expander(f"出口对账丢弃了 {len(rep['dropped'])} 句", expanded=False):
+                for slot, sent, why in rep["dropped"]:
+                    st.caption(f"[{slot}] {sent} → {why}")
+
+
 # ══════════════════════════ 沙盘主页 ══════════════════════════
 def render_sandbox():
     st.caption("选址禀赋 → 象限战略 → 定价博弈 → 财务价值裁决 · "
@@ -486,9 +588,8 @@ def render_sandbox():
     with headline:
         st.markdown(f"### {T.verdict_sentence(game_read['verdict'])}")
 
-    # ── 总裁办简报（Phase 4 · 待建）──
-    st.markdown(f"#### {_t('SEC_C_TITLE', 'C · 总裁办简报')}")
-    st.info(_t("BRIEF_PLACEHOLDER", "Phase 4 建设中：简报区。"))
+    # ── C 段 · 商业分析简报（Phase 4）──
+    render_brief(k, self_read, game_read)
 
     st.divider()
     render_appendix(k["quad"])
