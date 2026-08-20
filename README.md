@@ -69,6 +69,14 @@ python build_corpus.py --dry-run     # 只切片与质量自检，不花额度
 export ZHIPU_API_KEY=xxxx            # Colab：os.environ[...] = getpass(...)
 python build_corpus.py               # 切片 → 嵌入 → 写 vecs.npz → 三项检索诊断
 ```
+**重建演示缓存（仅在改动提示词 / 语料 / 简报模板后需要，需 generation key）**
+```bash
+python make_cache.py --dry-run   # 只算引擎读数、不调 LLM
+python make_cache.py             # 走完整管线 → cache/*.json
+```
+> 缓存里的每个数字都由引擎算出，与页面上方图表必然一致——缓存面向没填 Key 的用户，
+> 数字对不上就等于在最显眼的免费路径上破掉「简报数字必须逐字对得上引擎」这条红线。
+
 > 产物 `corpus/chunks.jsonl` + `corpus/vecs.npz` **必须进 Git**：Cloud 上没有 embedding key，重算不了。
 > 这与 `simulation_config.json` 相反——判据是"部署环境能否自力再生"，不是"是不是产物"。
 
@@ -118,7 +126,8 @@ jupyter notebook NEV_Phase0.ipynb
 | `brief.py` | **运行期**：触发 → 检索（锚定+补位）→ 生成 → **出口对账** → 屏上两段 + docx 四章 | ✅ |
 | `corpus/policy.md` · `strategy.md` | 语料源：地方产业政策 22 条 + 车企战略 9 条（摘编，带来源） | ✅ |
 | `corpus/chunks.jsonl` · `vecs.npz` | 切片与向量产物（**必须入库**，Cloud 无 embedding key） | ✅ |
-| `cache/*.json` | 演示缓存：断网/限流也能演示 | ✅ |
+| `make_cache.py` | **构建期**：按几条典型演示路径走引擎取真值 → 生成演示缓存 | ✅ |
+| `cache/*.json` | 演示缓存：断网/限流也能演示（只存 json，docx 由下载时现场渲染） | ✅ |
 | `app.py` | 两 tab：象限地图 · 沙盘（A 财务双线 / B 博弈双散点 / C 简报）+ 仪表盘视觉 | ✅ |
 | `PHASE4_audit_log.md` | 合页与 RAG 设计 / 决策演变 / 红线落地 / §F 验收 | ✅ |
 | **通用** | | |

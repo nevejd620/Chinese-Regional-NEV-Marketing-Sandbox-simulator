@@ -2,7 +2,7 @@
 
 > **状态**: ✅ 已收官 · 待打 tag `v0.5`
 > **在线**: https://chinese-regional-nev-marketing-sandbox-simulator-3lpxhv6sebdda.streamlit.app/
-> **范围**: `triggers.py`(新增) + `build_corpus.py`(新增·构建期) + `brief.py`(新增·运行期) + `corpus/`(新增·语料与向量) + `app.py`(合页 + C 段 + 仪表盘视觉) + `copy_cn.py`(追加) + `config.py`(追加) + `.streamlit/config.toml`(改主题) + `requirements.txt`(+openai/python-docx)
+> **范围**: `triggers.py`(新增) + `build_corpus.py`(新增·构建期) + `make_cache.py`(新增·构建期) + `brief.py`(新增·运行期) + `corpus/`(新增·语料与向量) + `app.py`(合页 + C 段 + 仪表盘视觉) + `copy_cn.py`(追加) + `config.py`(追加) + `.streamlit/config.toml`(改主题) + `requirements.txt`(+openai/python-docx)
 > **计量**: 全表人民币 (RMB)，中国市场口径（沿用 Phase 0–3）
 > **上游依赖**: Phase 0–3 全部产出；引擎四件套 `simulate.py`/`financials.py`/`game.py`/`calibration.py` **一行未改**
 > **核心兑现**: 给已经算出来的数字配一段**有据可依的解释**——且**LLM 从头到尾够不到财务数字**
@@ -36,6 +36,8 @@ Phase 4 是全项目唯一带 LLM 的阶段，也是宪章标注"最易漂移"�
 | P4.18 | **配色四分**：绿=可操作／象限色=你是谁／石墨灰=别人／红=零轴 | 交互色与内容色不共用色相，否则用户分不清"控件"还是"数据" | ✅ 冻结 |
 | P4.19 | 四象限色板**单一真相源**在 `copy_cn.QUAD_COLOR`，象限地图与图一/图二共用 | 此前两处各写一套，卡片色与散点色对不上号 | ✅ 冻结 |
 | P4.20 | 引擎四件套零改动，Phase 4 只做下游消费者 | 沿用 `financials.py` 当年对引擎的关系 | ✅ 冻结 |
+| P4.21 | **演示缓存只存 json、不存 docx**；docx 由 `to_docx(rep)` 在用户点下载时现场渲染 | 渲染是纯确定性的，同一 json 永远出同一文档 → 预存冗余；且改版式无需重跑缓存 | ✅ 冻结 |
+| P4.22 | 缓存的每个数字**必须由引擎算出**（`make_cache.py` 完整复刻 app 取数链路），严禁手填占位值 | 缓存是给**没填 Key 的用户**看的；页面上方图表是引擎真值，简报若是另一套数字，红线当场破在最显眼的免费路径上 | ✅ 冻结 |
 
 ---
 
@@ -81,6 +83,7 @@ v1 用 `象限 × 裁决态` 作两个视角共同的检索键。首轮构建诊
 | 48 格 trigger × LLM 改写 query | 改写层整个砍掉，query 由模板拼 | 50 条模板 query，构建期一次性嵌入 |
 | Baseline vs RAG 对照、检索评估（Assignment 2 的 Step 7/9） | 属作业评审环节，沙盘无此观众 | **砍**（但**出口对账不可砍**——它形似评估、实为红线的执行机构） |
 | 48 份演示缓存全预生成 | 每改一次 prompt/语料/模板即全部作废，且淹没提交记录 | **固定 3–4 条演示路径** |
+| 缓存用手填的示例数字 | 初版用占位值（`share=0.2` 等）快速跑通。**推翻**——缓存面向没填 Key 的用户，与页面上方图表并列展示，数字对不上等于**当众破红线** | 新增 `make_cache.py`，走 `simulate → financials → game` 取真值 |
 | 「象限跟随城市」自动联动 | 我用 `baseline[city]["quadrant"]` 驱动 UI —— **它是该城基线企业碰巧所处的象限（数值层的一条记录），不是城市的属性**。此举在界面上重新焊死了 Phase 3 §B 刚拆掉的「城市 ⊥ 象限解耦」 | **整体撤除**（连同 `QUAD_OFF_HOME` 提示）。教训已写进 `app.py` 文件头注释防复发 |
 | 「定价基线」的 tooltip 与诚实声明 | 查证发现两台引擎各锚各的起点，遂写进 tooltip → 诚实声明 → UI 行为 → 结构性约束。但实测比值 0.86–1.03，**默认状态下没有可察觉的差异** | **整体删除**。这是宪章 §7「把观众当审稿人」的典型：为一个不存在的问题写了四层脚注 |
 | 主色 蓝 `#185FA5` → 绿 `#12A47A` | 过宪章 §8 三问：非修 bug、非加精度，属"提升趣味/直觉" | 改。并连带把 Q3 改墨绿、B 段改石墨灰（见 §B5） |
@@ -123,6 +126,7 @@ v1 用 `象限 × 裁决态` 作两个视角共同的检索键。首轮构建诊
 构建期（作者本地跑一次，产物进 Git）
   corpus/policy.md · strategy.md  →  切片 → 嵌入 → chunks.jsonl + vecs.npz
   triggers.QUERIES（50 条）        →  嵌入 → vecs.npz(query_vecs)
+  make_cache.PRESETS（3–4 条）     →  引擎取真值 → 走完整管线 → cache/*.json
 
 运行期（用户点「生成报告」，一次 API 调用）
   ① 触发  旋钮 + 引擎输出 → trigger_key + Readout
@@ -137,7 +141,7 @@ v1 用 `象限 × 裁决态` 作两个视角共同的检索键。首轮构建诊
 |---|---|---|---|
 | `corpus/chunks.jsonl` | ~22 KB | ✅ | 切片正文与出处元数据 |
 | `corpus/vecs.npz` | ~538 KB | ✅ | 语料 31×2048 + query 50×2048。**Cloud 上没有 embedding key，重算不了** |
-| `cache/*.json` | 小 | ✅ | 3–4 条演示路径，断网可演示 |
+| `cache/*.json` | 小 | ✅ | 3–4 条演示路径，断网可演示。**只有 json，无 docx**（见 P4.21）；数字由 `make_cache.py` 走引擎算出（见 P4.22） |
 | `simulation_config.json` | — | ❌ | 与上相反：Cloud 能自己现算（`calibration.py`） |
 
 > **对照记忆**：`simulation_config.json` 不入库因为**算得出来**；`vecs.npz` 必须入库因为**算不出来**（缺 key）。判据是"部署环境能否自力再生"，不是"是不是产物"。
@@ -168,6 +172,8 @@ v1 用 `象限 × 裁决态` 作两个视角共同的检索键。首轮构建诊
 - [x] 锚点覆盖：裁决态 **5/5**、象限 **4/4**、六城各有专属材料
 - [x] 嵌入 31 语料 + 50 query，写出 `chunks.jsonl` + `vecs.npz`
 - [x] 有效分辨率 **120 种组合 → 90 组不同结果**（健康）
+- [x] `make_cache.py` 生成演示缓存，读数全部来自引擎（`--dry-run` 可单独校验取数链路）
+- [x] 缓存直出：`load_cache → to_markdown / to_docx` 不调 API、不调模型
 - [x] 裁决态命中 **120/120**（锚定生效）
 - [x] 视角隔离 **0/120**（分池检索，预期为 0）
 
@@ -222,6 +228,12 @@ v1 用 `象限 × 裁决态` 作两个视角共同的检索键。首轮构建诊
 python build_corpus.py --dry-run     # 只切片与质量自检，不花额度
 export ZHIPU_API_KEY=xxxx            # Colab: os.environ[...] = getpass(...)
 python build_corpus.py               # 切片 → 嵌入 → 写 npz → 三项诊断
+```
+
+**演示缓存（改 prompt / 语料 / 简报模板后需重跑，需 generation key）**
+```bash
+python make_cache.py --dry-run   # 只算引擎读数、不调 LLM，校验取数链路
+python make_cache.py             # 走完整管线 → cache/*.json
 ```
 
 **运行期**
