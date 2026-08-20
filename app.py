@@ -49,39 +49,81 @@ cn_of = lambda r: CITY_CN.get(r, r)
 # 四象限色板：**单一真相源在 copy_cn.QUAD_COLOR**，象限地图与图 C 共用，
 # 保证卡片颜色与散点颜色一一对应（此前两处各写一套，对不上号）。
 QUAD_COLOR = getattr(T, "QUAD_COLOR", {
-    "Q1": "#0E9BAE", "Q2": "#6F5BD6", "Q3": "#0E9F6E", "Q4": "#E5A017"})
+    "Q1": "#0E9BAE", "Q2": "#6F5BD6", "Q3": "#0A6E4C", "Q4": "#E5A017"})
 SECTION_COLOR = getattr(T, "SECTION_COLOR", {
-    "A": "#12A47A", "B": "#0E9BAE", "C": "#6F5BD6"})
+    "A": "#12A47A", "B": "#4A5B63", "C": "#6F5BD6"})
+RIVAL = getattr(T, "RIVAL_COLOR", "#4A5B63")
+ZERO = getattr(T, "ZERO_COLOR", "#C0392B")
+BASEC = getattr(T, "BASE_COLOR", "#8A9A93")
+PRIMARY = SECTION_COLOR.get("A", "#12A47A")
+
+# Plotly 统一底纹：透明底 + 浅描边，嵌进白卡片里不突兀
+PLOT_LAYOUT = dict(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                   font=dict(color="#14261F", size=12),
+                   xaxis=dict(gridcolor="#E7EFEB", zerolinecolor="#DCE7E2"),
+                   yaxis=dict(gridcolor="#E7EFEB", zerolinecolor="#DCE7E2"))
 
 
 def _inject_css():
-    """全局样式：圆角、卡片阴影、分区色带。主题色在 .streamlit/config.toml。"""
+    """仪表盘风格：白卡片 + 柔和阴影 + 顶部色条 + 圆角。主题主色在 .streamlit/config.toml。
+
+    注意：主色若不生效（滑块仍是默认红），多半是 config.toml 没放进 `.streamlit/` 子目录。
+    """
     st.markdown("""
     <style>
-      /* 卡片：圆角 + 轻描边 + 极淡阴影，替代默认的直角灰框 */
+      .block-container { padding-top: 2.2rem; }
+      /* 卡片：圆角 + 描边 + 柔和阴影，替代默认直角灰框 */
       div[data-testid="stVerticalBlockBorderWrapper"] {
           border-radius: 14px !important;
-          border: 1px solid rgba(18,164,122,.18) !important;
-          box-shadow: 0 1px 3px rgba(20,38,31,.05);
+          border: 1px solid #E3ECE8 !important;
+          background: #FFFFFF;
+          box-shadow: 0 1px 2px rgba(20,38,31,.04), 0 4px 12px rgba(20,38,31,.05);
       }
-      /* 折叠面板、输入框、按钮统一圆角 */
-      details, div[data-testid="stExpander"] { border-radius: 12px !important; }
+      details, div[data-testid="stExpander"] {
+          border-radius: 12px !important; border-color: #E3ECE8 !important;
+      }
       .stButton > button, .stDownloadButton > button,
       .stTextInput input, .stSelectbox div[data-baseweb="select"] > div {
           border-radius: 10px !important;
       }
-      /* 分区标题：左侧色带 + 浅色底，做视觉引导 */
+      /* 分区标题：左色带 + 同色浅底纹 */
       .sec-head {
           border-left: 5px solid var(--accent);
-          background: linear-gradient(90deg, var(--tint), transparent 65%);
-          padding: .55rem .9rem; border-radius: 0 12px 12px 0; margin: .2rem 0 .1rem;
+          background: linear-gradient(90deg, var(--tint), transparent 62%);
+          padding: .6rem .95rem; border-radius: 0 12px 12px 0; margin: .35rem 0 .5rem;
       }
-      .sec-head .t { font-size: 1.12rem; font-weight: 700; color: #14261F; }
-      .sec-head .s { font-size: .84rem; color: #5A6B64; margin-top: .15rem; }
-      /* 控制台两组之间的呼吸位 */
-      .grp-gap { height: 1.4rem; }
-      /* 开关与滑块基线对齐（滑块比开关多一行数值） */
-      .tgl-pad { height: 1.55rem; }
+      .sec-head .t { font-size: 1.14rem; font-weight: 700; color: #14261F; }
+      .sec-head .s { font-size: .84rem; color: #5A6B64; margin-top: .18rem; }
+      /* 控制台：外层浅底盘 + 内层白卡 + 顶部主色条 */
+      .panel {
+          background: #F4F8F6; border: 1px solid #DCE7E2; border-radius: 14px;
+          padding: .9rem 1rem .6rem; margin-bottom: .6rem;
+      }
+      .panel-t { font-size: .92rem; font-weight: 700; color: #14261F;
+                 border-top: 3px solid var(--accent); padding-top: .5rem; }
+      .panel-s { font-size: .8rem; color: #7A8A83; font-weight: 400; }
+      /* 三个动作各包一张等高小卡 —— 靠卡片撑齐高度，不做像素级微调 */
+      .knob { background:#F8FBFA; border:1px solid #E9F1ED; border-radius:10px;
+              padding:.5rem .7rem .15rem; min-height: 92px; }
+      .knob-t { font-size:.84rem; color:#3E4F49; font-weight:600; margin-bottom:.1rem; }
+      /* KPI 指标卡 */
+      .kpi { background:#FFFFFF; border:1px solid #E3ECE8; border-radius:10px;
+             padding:.55rem .8rem; box-shadow:0 1px 2px rgba(20,38,31,.04); }
+      .kpi .l { font-size:.78rem; color:#7A8A83; }
+      .kpi .v { font-size:1.12rem; font-weight:700; line-height:1.5; }
+      /* 象限地图：坐标轴与卡片 */
+      .qgrid { position:relative; }
+      .qcard { border-radius:12px; padding:.7rem .9rem; min-height:196px;
+               border:1px solid; }
+      .qcard .h { font-weight:700; font-size:.98rem; margin-bottom:.35rem;
+                  border-left:4px solid; padding-left:.5rem; }
+      .qcard .f { font-size:.82rem; color:#3E4F49; line-height:1.65; }
+      .qcard .tag { display:inline-block; padding:.08rem .5rem; border-radius:8px;
+                    font-size:.76rem; font-weight:600; margin-top:.3rem; }
+      .axis-t { font-size:.78rem; color:#8A9A93; }
+      .axis-e { font-size:.88rem; color:#3E4F49; font-weight:600; }
+      .vline { border-left:1.5px solid #C7D4CF; height:100%; margin:0 auto; }
+      .hline { border-top:1.5px solid #C7D4CF; margin:.35rem 0; }
     </style>""", unsafe_allow_html=True)
 
 
@@ -127,7 +169,7 @@ def _panel(days, p05, p50, p95, prev_p50, color, rgba, y_title,
                              name="p5–p95 置信带"))
     if prev_p50 is not None:
         fig.add_trace(go.Scatter(x=days, y=prev_p50, mode="lines",
-                                 line=dict(color="#B0AEA8", width=1.4, dash="dot"),
+                                 line=dict(color="#B6C3BD", width=1.4, dash="dot"),
                                  name=prev_label))
         fig.add_trace(go.Scatter(x=days, y=p50, mode="lines", fill="tonexty",
                                  fillcolor=rgba.replace("A%", "0.22"),
@@ -136,45 +178,53 @@ def _panel(days, p05, p50, p95, prev_p50, color, rgba, y_title,
         fig.add_trace(go.Scatter(x=days, y=p50, mode="lines",
                                  line=dict(color=color, width=2.6), name=this_label))
     if zero_ref:
-        fig.add_hline(y=0, line=dict(color="#C0392B", dash="dash"),
+        fig.add_hline(y=0, line=dict(color=ZERO, dash="dash"),
                       annotation_text=zero_label, annotation_position="top left",
-                      annotation_font=dict(color="#C0392B", size=11))
+                      annotation_font=dict(color=ZERO, size=11))
     if base_ref is not None:
-        fig.add_hline(y=base_ref, line=dict(color="#888780", dash="dash"),
+        fig.add_hline(y=base_ref, line=dict(color=BASEC, dash="dash"),
                       annotation_text=base_label, annotation_position="bottom left",
-                      annotation_font=dict(color="#888780", size=11))
+                      annotation_font=dict(color=BASEC, size=11))
     fig.update_layout(height=250, margin=dict(l=10, r=80, t=20, b=8),
                       yaxis_title=y_title, yaxis_tickformat=".0%",
-                      legend=dict(orientation="h", y=1.18), showlegend=True)
+                      legend=dict(orientation="h", y=1.18), showlegend=True,
+                      **PLOT_LAYOUT)
     return fig
 
 
 # ══════════════════════════ 图 B / 图 C · 博弈散点 ══════════════════════════
-def _fig_arena(c1, y_key, y_lab):
-    """图 B · 象限内竞争：份额 × 评判指标（纯竞争、无联盟）。"""
+def _fig_arena(c1, y_key, y_lab, quad=None):
+    """图 B · 象限内竞争：份额 × 评判指标（纯竞争、无联盟）。
+
+    配色规则：**你＝当前象限色**（与图 C、象限地图同色），对手统一退为石墨灰。
+    这样"你"在三处始终同色，识别成本最低；对手仍看得清相对位置但不抢注意力。
+    """
     fig = go.Figure()
+    you_c = QUAD_COLOR.get(quad, PRIMARY)
     xs = [p["share"] for p in c1["points"]]
     ys = [p.get(y_key) for p in c1["points"]]
     labels = [("你" if p["is_user"] else p["firm_id"]) for p in c1["points"]]
-    colors = ["#e4572e" if p["is_user"] else "#4c9be8" for p in c1["points"]]
-    sizes = [26 if p["is_user"] else 15 for p in c1["points"]]
+    colors = [you_c if p["is_user"] else RIVAL for p in c1["points"]]
+    sizes = [26 if p["is_user"] else 14 for p in c1["points"]]
+    opac = [1.0 if p["is_user"] else 0.72 for p in c1["points"]]
     fig.add_trace(go.Scatter(
         x=xs, y=ys, mode="markers+text", text=labels, textposition="top center",
-        marker=dict(size=sizes, color=colors, line=dict(width=1, color="white")),
+        marker=dict(size=sizes, color=colors, opacity=opac,
+                    line=dict(width=1.4, color="white")),
         hovertext=[f"{l}｜售价 {p['price']/1e4:.1f}万｜份额 {p['share']:.0%}"
                    f"｜{y_lab} {T.fmt_pct(p.get(y_key))}"
                    for l, p in zip(labels, c1["points"])],
         hoverinfo="text", showlegend=False))
-    fig.add_hline(y=0, line=dict(color="#C0392B", dash="dash"),
+    fig.add_hline(y=0, line=dict(color=ZERO, dash="dash"),
                   annotation_text=T.ZERO_LINE_P3, annotation_position="top left",
-                  annotation_font=dict(color="#C0392B", size=11))
+                  annotation_font=dict(color=ZERO, size=11))
     fig.update_xaxes(title_text=T.CHART1_XAXIS, tickformat=".0%")
     fig.update_yaxes(title_text=y_lab)
-    fig.update_layout(height=420, margin=dict(t=40, b=50, l=55, r=20))
+    fig.update_layout(height=420, margin=dict(t=40, b=50, l=55, r=20), **PLOT_LAYOUT)
     return fig
 
 
-def _fig_eco(c2, y_key, y_lab):
+def _fig_eco(c2, y_key, y_lab, quad=None):
     """图 C · 区域/全国竞合：非价格吸引力 × 评判指标（跨象限、联盟连边）。"""
     fig = go.Figure()
     pt_by_id = {p["firm_id"]: p for p in c2["points"]}
@@ -183,7 +233,7 @@ def _fig_eco(c2, y_key, y_lab):
         if a and b:
             fig.add_trace(go.Scatter(
                 x=[a["a_value"], b["a_value"]], y=[a.get(y_key), b.get(y_key)],
-                mode="lines", line=dict(width=2, color="rgba(120,180,120,0.7)", dash="dot"),
+                mode="lines", line=dict(width=2, color="rgba(18,164,122,0.55)", dash="dot"),
                 hoverinfo="skip", showlegend=False))
 
     def _hover(p, lab):
@@ -211,21 +261,23 @@ def _fig_eco(c2, y_key, y_lab):
         fig.add_trace(go.Scatter(
             x=[p["a_value"] for p in you_pts], y=[p.get(y_key) for p in you_pts],
             mode="markers+text", text=["你"], textposition="top center", name="你",
-            marker=dict(size=26, color="#e4572e",
+            # "你"用当前象限色 —— 与图 B、象限地图卡片同色，三处一眼对得上
+            marker=dict(size=26, color=QUAD_COLOR.get(quad, PRIMARY),
                         line=dict(width=[2.2 if p["in_alliance"] else 1 for p in you_pts],
                                   color=["#3d3d3d" if p["in_alliance"] else "white"
                                          for p in you_pts])),
             hovertext=[_hover(p, "你") for p in you_pts],
             hoverinfo="text", showlegend=True))
 
-    fig.add_hline(y=0, line=dict(color="#C0392B", dash="dash"),
+    fig.add_hline(y=0, line=dict(color=ZERO, dash="dash"),
                   annotation_text=T.ZERO_LINE_P3, annotation_position="top left",
-                  annotation_font=dict(color="#C0392B", size=11))
+                  annotation_font=dict(color=ZERO, size=11))
     fig.update_xaxes(title_text=T.CHART2_XAXIS)
     fig.update_yaxes(title_text=y_lab)
     fig.update_layout(height=420, margin=dict(t=40, b=90, l=55, r=20),
                       legend=dict(orientation="h", yanchor="top", y=-0.16,
-                                  xanchor="center", x=0.5, title_text="象限"))
+                                  xanchor="center", x=0.5, title_text="象限"),
+                      **PLOT_LAYOUT)
     return fig
 
 
@@ -234,24 +286,32 @@ def render_console():
     """一页一个控制台。返回全部旋钮/牌面状态（同时也是 Phase 4 简报的动作快照来源）。"""
     quads = list(C.QUAD_PROFILE.keys())
 
-    st.markdown(f"**{_t('CONSOLE_ACTION_TITLE', '我的动作')}**")
-    a1, a2, a3 = st.columns([2, 2, 1], gap="large")
+    st.markdown(
+        f'<div class="panel" style="--accent:{PRIMARY}">'
+        f'<div class="panel-t">{_t("CONSOLE_ACTION_TITLE", "你的动作")}</div></div>',
+        unsafe_allow_html=True)
+    # 三项各包一张等高小卡：靠卡片撑齐高度，比 CSS 微调稳（此前反复对不齐）
+    a1, a2, a3 = st.columns(3, gap="medium")
     with a1:
-        price_pct = st.slider(T.SLIDER_PRICE, PRICE_RANGE[0], PRICE_RANGE[1], 0, step=1,
-                              key="k_price", help=_t("HELP_PRICE", ""))
+        with st.container(border=True):
+            price_pct = st.slider(T.SLIDER_PRICE, PRICE_RANGE[0], PRICE_RANGE[1], 0,
+                                  step=1, key="k_price", help=_t("HELP_PRICE", ""))
     with a2:
-        eco = st.slider(T.SLIDER_ECO, 0.0, C.ECO_SLIDER_MAX, 0.0, step=0.05, key="k_eco",
-                        help=_t("HELP_ECO", ""))
+        with st.container(border=True):
+            eco = st.slider(T.SLIDER_ECO, 0.0, C.ECO_SLIDER_MAX, 0.0, step=0.05,
+                            key="k_eco", help=_t("HELP_ECO", ""))
     with a3:
-        st.markdown(T.TOGGLE_ALLY)
-        # 滑块比开关多一行数值文本，补等高的占位块，让开关与滑块轨道同高
-        st.markdown('<div class="tgl-pad"></div>', unsafe_allow_html=True)
-        ally = st.toggle(" ", value=False, key="k_ally", label_visibility="collapsed")
+        with st.container(border=True):
+            st.markdown(T.TOGGLE_ALLY)
+            ally = st.toggle(" ", value=False, key="k_ally",
+                             label_visibility="collapsed")
 
-    st.markdown('<div class="grp-gap"></div>', unsafe_allow_html=True)
-    st.markdown(f"**{_t('CONSOLE_ENV_TITLE', '牌面与环境')}**"
-                f"　:gray[{_t('CONSOLE_ENV_HINT', '（不是你的动作：牌面是给定的，冲击是外生的）')}]")
-    e1, e2, e3, e4 = st.columns([1.2, 1.4, 2, 2], gap="large")
+    st.markdown(
+        f'<div class="panel" style="--accent:{RIVAL}">'
+        f'<div class="panel-t">{_t("CONSOLE_ENV_TITLE", "牌面与环境")}'
+        f'　<span class="panel-s">{_t("CONSOLE_ENV_HINT", "")}</span></div></div>',
+        unsafe_allow_html=True)
+    e1, e2, e3, e4 = st.columns([1.2, 1.4, 2, 2], gap="medium")
     with e1:
         city = st.selectbox("城市 / 选址", cities, format_func=cn_of, key="k_city",
                             help=_t("HELP_CITY", ""))
@@ -326,7 +386,7 @@ def render_self(k):
     with g1:
         st.markdown(f"**{T.PANEL_ROE_TITLE}**")
         roe_fig = _panel(res["days"], res["roe_p05"], res["roe_p50"], res["roe_p95"],
-                         (prev["roe"] if prev else None), "#185FA5", "rgba(24,95,165,A%)",
+                         (prev["roe"] if prev else None), PRIMARY, "rgba(18,164,122,A%)",
                          T.AXIS_ROE_LABEL, zero_ref=False, zero_label="",
                          base_ref=res["roe_base"], base_label=T.ROE_BASE_LABEL,
                          this_label=T.SHADE_THIS_LABEL, prev_label=T.SHADE_PREV_LABEL)
@@ -338,7 +398,7 @@ def render_self(k):
         st.markdown(f"**{T.PANEL_SPR_TITLE}**")
         if has_ebit:
             spr_fig = _panel(res["days"], spr_p05, spr_p50, spr_p95,
-                             (prev["spr"] if prev else None), "#C0392B", "rgba(192,57,43,A%)",
+                             (prev["spr"] if prev else None), ZERO, "rgba(192,57,43,A%)",
                              T.AXIS_SPR_LABEL, zero_ref=True, zero_label=T.ZERO_LINE_LABEL,
                              base_ref=None, base_label="",
                              this_label=T.SHADE_THIS_LABEL, prev_label=T.SHADE_PREV_LABEL)
@@ -438,11 +498,13 @@ def render_game(k):
     b, c = st.columns(2, gap="large")
     with b:
         st.markdown(f"**{T.CHART1_TITLE}**")
-        st.plotly_chart(_fig_arena(c1, scorer, y_lab), use_container_width=True)
+        st.plotly_chart(_fig_arena(c1, scorer, y_lab, quad),
+                        use_container_width=True)
         st.caption(T.CHART1_SUB)
     with c:
         st.markdown(f"**{T.CHART2_TITLE}**")
-        st.plotly_chart(_fig_eco(c2, scorer, y_lab), use_container_width=True)
+        st.plotly_chart(_fig_eco(c2, scorer, y_lab, quad),
+                        use_container_width=True)
         st.caption(T.CHART2_SUB)
 
     v = c1["verdict"]
@@ -476,44 +538,73 @@ def _quad_stats(q):
 
 
 def _quad_card(col, q, highlight=None, compact=False, show_play=True):
+    """一格象限卡：底色为该象限色的高透明版，左侧色条与图 B/C 同色。"""
     cell = T.QUAD_CELL[q]
-    color = QUAD_COLOR.get(q, "#12A47A")
-    with col.container(border=True):
-        # 卡片标题用该象限的颜色 —— 与图 C 散点同色，一眼能对上号
-        st.markdown(
-            f'<div style="border-left:4px solid {color};padding-left:.5rem;'
-            f'font-weight:700;color:{color}">{cell["name"]}</div>',
-            unsafe_allow_html=True)
-        if q == highlight:
-            st.markdown(
-                f'<div style="display:inline-block;margin:.35rem 0;padding:.1rem .5rem;'
-                f'border-radius:8px;background:{color}22;color:{color};'
-                f'font-size:.8rem;font-weight:600">◀ 你选的象限</div>',
-                unsafe_allow_html=True)
-        if compact:
-            if show_play:
-                st.caption(f"打法 · {cell['play']}")
-        else:
-            st.markdown(f"**{T.QUAD_FIELD['feature']}**：{cell['feature']}")
-            st.markdown(f"**{T.QUAD_FIELD['anchors']}**：{cell['anchors']}")
-            st.markdown(f"**{T.QUAD_FIELD['strategy']}**：{cell['strategy']}")
-            st.markdown(f"**{T.QUAD_FIELD['params']}**：{_quad_stats(q)}")
+    c = QUAD_COLOR.get(q, PRIMARY)
+    rows = [f'<div class="h" style="border-color:{c};color:{c}">{cell["name"]}</div>']
+    if q == highlight:
+        rows.append(f'<div class="tag" style="background:{c}22;color:{c}">'
+                    f'◀ 你选的象限</div>')
+    if compact:
+        if show_play:
+            rows.append(f'<div class="f">打法 · {cell["play"]}</div>')
+    else:
+        for key in ("feature", "anchors", "strategy"):
+            rows.append(f'<div class="f"><b>{T.QUAD_FIELD[key]}</b>：{cell[key]}</div>')
+        rows.append(f'<div class="f"><b>{T.QUAD_FIELD["params"]}</b>：'
+                    f'{_quad_stats(q)}</div>')
+    col.markdown(
+        f'<div class="qcard" style="background:{c}14;border-color:{c}55;'
+        f'{"min-height:auto" if compact else ""}">{"".join(rows)}</div>',
+        unsafe_allow_html=True)
 
 
 def render_quadrant_map(highlight=None, compact=False, show_play=True):
-    """2×2 象限地图。compact=True 为精简条（名称 + 可选策略一行）；否则为「象限地图」tab 详版。"""
+    """2×2 象限地图。
+
+    用真实的十字坐标轴划出四格、四张等大卡片嵌进象限里（此前是灰色小字加箭头，
+    看不出"这是一个坐标系"）。轴标题一律【移出图区】：纵轴标题落在「高端市场」
+    上方，横轴标题落在「纯电」左侧 —— 否则会压到卡片上。
+    """
+    AX = getattr(T, "QUAD_AXIS", {
+        "y_title": "纵轴 · 价格层级", "y_top": "高端市场", "y_bot": "中低端大众市场",
+        "x_title": "横轴 · 动力路线", "x_left": "纯电",
+        "x_right": "多路线（混动 / 增程）"})
     if not compact:
         st.subheader(T.QUAD_MAP_TITLE)
         st.caption(T.QUAD_MAP_INTRO)
-    st.caption(T.QUAD_AXIS_Y_TOP)
-    r1c1, r1c2 = st.columns(2)
-    _quad_card(r1c1, "Q1", highlight, compact, show_play)
-    _quad_card(r1c2, "Q2", highlight, compact, show_play)
-    r2c1, r2c2 = st.columns(2)
-    _quad_card(r2c1, "Q4", highlight, compact, show_play)
-    _quad_card(r2c2, "Q3", highlight, compact, show_play)
-    st.caption(T.QUAD_AXIS_Y_BOT)
-    st.caption(T.QUAD_AXIS_X)
+
+    # 纵轴：标题 + 上端点，居中于整张图之上
+    st.markdown(f'<div style="text-align:center">'
+                f'<div class="axis-t">{AX["y_title"]}</div>'
+                f'<div class="axis-e">▲ {AX["y_top"]}</div></div>',
+                unsafe_allow_html=True)
+
+    # 上排：Q1 | 轴 | Q2
+    l, mid, r = st.columns([1, 0.06, 1], gap="small")
+    _quad_card(l, "Q1", highlight, compact, show_play)
+    mid.markdown('<div class="vline" style="height:100%"></div>',
+                 unsafe_allow_html=True)
+    _quad_card(r, "Q2", highlight, compact, show_play)
+
+    # 横轴带：左＝轴标题 + 左端点，右＝右端点
+    xl, xr = st.columns([1, 1])
+    xl.markdown(f'<div class="axis-t">{AX["x_title"]}</div>'
+                f'<div class="axis-e">◀ {AX["x_left"]}</div>', unsafe_allow_html=True)
+    xr.markdown(f'<div style="text-align:right" class="axis-e">'
+                f'{AX["x_right"]} ▶</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hline"></div>', unsafe_allow_html=True)
+
+    # 下排：Q4 | 轴 | Q3
+    l2, mid2, r2 = st.columns([1, 0.06, 1], gap="small")
+    _quad_card(l2, "Q4", highlight, compact, show_play)
+    mid2.markdown('<div class="vline" style="height:100%"></div>',
+                  unsafe_allow_html=True)
+    _quad_card(r2, "Q3", highlight, compact, show_play)
+
+    st.markdown(f'<div style="text-align:center" class="axis-e">'
+                f'▼ {AX["y_bot"]}</div>', unsafe_allow_html=True)
+
     if not compact:
         st.caption(T.QUAD_MAP_NOTE)
         if T.PARAM_BETA_DESC or T.PARAM_THETA_DESC:
