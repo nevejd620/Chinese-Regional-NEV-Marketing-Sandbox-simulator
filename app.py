@@ -566,7 +566,8 @@ _QUAD_CSS = """
   width:1.5px; background:#C7D4CF; transform:translateX(-.75px);
   pointer-events:none;
 }
-.qm-cell{ height:100%; box-sizing:border-box; }
+.qm-cell{ height:100%; box-sizing:border-box;
+          padding:.3rem .3rem .5rem; }
 .qm-xband{
   grid-column:1 / -1; display:flex; justify-content:space-between;
   align-items:flex-end; gap:.5rem; padding:.85rem .1rem;
@@ -575,7 +576,7 @@ _QUAD_CSS = """
 }
 .qm-card{
   height:100%; box-sizing:border-box; border:1px solid; border-radius:12px;
-  padding:.8rem .95rem; margin:.28rem .28rem .45rem;
+  padding:.8rem .95rem; margin:0;
 }
 .qm-h{ font-weight:700; font-size:.98rem; line-height:1.35;
        border-left:4px solid; padding-left:.5rem; margin-bottom:.5rem; }
@@ -596,7 +597,8 @@ _QUAD_CSS = """
              gap:.1rem; padding:.5rem .55rem; }
   .qm-xband > div{ min-width:0; overflow-wrap:anywhere;
                    text-align:left; }
-  .qm-card{ padding:.55rem .6rem; margin:.18rem .18rem .3rem; }
+  .qm-card{ padding:.55rem .6rem; }
+  .qm-cell{ padding:.2rem .2rem .35rem; }
   .qm-axt,.qm-axe{ font-size:.68rem; }
 }
 </style>
