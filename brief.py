@@ -289,7 +289,9 @@ _SYSTEM = """你是一位面向管理层的战略分析写作助手。你的唯�
   "policy_view":  "政策与区位视角，200-260字，结合参考材料",
   "compete_view": "竞争与生态视角，200-260字，结合参考材料",
   "conclusion":   "总结，150-200字，收口并给出下一步方向"
-}"""
+}
+
+再次强调：直接以 { 开头、以 } 结尾输出，前后不要有任何说明文字或代码围栏。"""
 
 
 def _prompt(labels: dict, docs: dict) -> str:
@@ -301,24 +303,57 @@ def _prompt(labels: dict, docs: dict) -> str:
             f"参考材料 · 战略类：\n{_fmt(docs.get('strategy', []))}")
 
 
+def _extract_json(txt: str) -> dict:
+    """从模型输出里挖出 JSON 对象。
+
+    实测（GLM-4-Flash）：模型常在 JSON 前后裹一层说明文字或 markdown 围栏，
+    只剥围栏是不够的。故三级兜底：
+      ① 直接解析 → ② 剥 ``` 围栏后解析 → ③ 取最外层 {...} 子串解析
+    """
+    txt = (txt or "").strip()
+    try:
+        return json.loads(txt)
+    except json.JSONDecodeError:
+        pass
+    stripped = re.sub(r"```(?:json)?|```", "", txt).strip()
+    try:
+        return json.loads(stripped)
+    except json.JSONDecodeError:
+        pass
+    i, j = stripped.find("{"), stripped.rfind("}")
+    if i != -1 and j > i:
+        return json.loads(stripped[i:j + 1])          # 失败则抛给上层
+    raise json.JSONDecodeError("no json object", stripped or "<empty>", 0)
+
+
 def generate(labels: dict, docs: dict, api_key: str) -> tuple[dict, str]:
     """返回 (slots, error)。任何失败都不抛异常 —— 上层据 error 走降级路径。"""
     try:
         from openai import OpenAI
     except ImportError:
         return {}, "缺少依赖：pip install openai"
+
+    cli = OpenAI(api_key=api_key, base_url=BASE_URL, timeout=TIMEOUT_S)
+    msgs = [{"role": "system", "content": _SYSTEM},
+            {"role": "user", "content": _prompt(labels, docs)}]
+    kw = dict(model=MODEL, temperature=TEMPERATURE, max_tokens=MAX_TOKENS,
+              messages=msgs)
+
+    txt = ""
     try:
-        cli = OpenAI(api_key=api_key, base_url=BASE_URL, timeout=TIMEOUT_S)
-        r = cli.chat.completions.create(
-            model=MODEL, temperature=TEMPERATURE, max_tokens=MAX_TOKENS,
-            messages=[{"role": "system", "content": _SYSTEM},
-                      {"role": "user", "content": _prompt(labels, docs)}])
-        txt = r.choices[0].message.content.strip()
-        txt = re.sub(r"^```(?:json)?|```$", "", txt, flags=re.M).strip()
-        data = json.loads(txt)
+        # 先试 JSON 模式（智谱 GLM-4 系列支持）；不支持的模型会报错，再退回普通模式。
+        try:
+            r = cli.chat.completions.create(
+                response_format={"type": "json_object"}, **kw)
+        except Exception:                                     # noqa: BLE001
+            r = cli.chat.completions.create(**kw)
+        txt = (r.choices[0].message.content or "").strip()
+        data = _extract_json(txt)
         return {k: str(data.get(k, "")).strip() for k in SLOTS}, ""
     except json.JSONDecodeError:
-        return {}, "模型返回的不是合法 JSON"
+        # 把原始输出的开头带回去 —— 否则"不是合法 JSON"这句话无从排查
+        head = txt[:160].replace("\n", " ") if txt else "<空响应>"
+        return {}, f"模型返回的不是合法 JSON；原始输出开头：{head}"
     except Exception as e:                                    # noqa: BLE001
         return {}, f"{type(e).__name__}: {e}"
 
