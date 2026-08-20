@@ -224,7 +224,7 @@ v1 用 `象限 × 裁决态` 作两个视角共同的检索键。首轮构建诊
 7. **Phase 3 及以前的遗留继续挂**：税 bug（数值层，搭车下次 Phase 0 重跑修）· γ 8/10（Shanghai/Xian）· schema 中自研分/换电网络/BOM 成本链有意未接入引擎（Phase 4 的 RAG 可用作叙事素材，**不得据此改动引擎数字**）。
 8. **`ensure_db()` 判据**：建议改为"存在**且有表**"（仓库内 `nev.db` 可能为空壳）。属修 bug、边际成本近零。
 9. **移动端**：象限地图用 `st.columns([1, 0.06, 1])` 夹中轴线，窄屏下中间列会被挤没。桌面端无碍。
-10. **API Key 安全**：Key 存 `st.session_state`、`type="password"`、不落盘不进 Git。构建期 key 走环境变量 + `getpass`，**不得写进 notebook**（`Individual_Assignment2.ipynb` 里那把硬编码的 Anthropic key 应吊销重发）。
+10. **API Key 安全**：Key 存 `st.session_state`、`type="password"`、不落盘不进 Git。构建期 key 走环境变量 + `getpass`，**不硬编码进任何文件**。
 
 ---
 
