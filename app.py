@@ -27,7 +27,8 @@ import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
 
-from ensure_db import ensure_db
+import ensure_db as _edb          # 整模块导入：IS_FALLBACK 由 ensure_db() 运行时写入，
+                                  # `from ... import IS_FALLBACK` 会把 False 绑死
 from calibration import recovery_table, cached_config
 from simulate import simulate_roe
 import financials
@@ -38,7 +39,7 @@ import brief
 
 st.set_page_config(page_title="NEV 沙盘 · 选址与定价博弈", layout="wide")
 
-ensure_db()
+_edb.ensure_db()
 config = cached_config()
 cities = list(config["baseline"].keys())
 
@@ -117,6 +118,20 @@ def _inject_css():
              padding:.55rem .8rem; box-shadow:0 1px 2px rgba(20,38,31,.04); }
       .kpi .l { font-size:.78rem; color:#7A8A83; }
       .kpi .v { font-size:1.12rem; font-weight:700; line-height:1.5; }
+      /* 同一行内的带框卡片等高：滑块自带数值行、开关没有，内容天然不等高。
+         占位符是治标（多了反超、少了还矮）；正解是让列拉伸、卡片撑满，
+         再把卡内内容首尾分离，标签自然贴底对齐。 */
+      div[data-testid="stHorizontalBlock"] { align-items: stretch; }
+      div[data-testid="stColumn"], div[data-testid="column"] { display: flex; }
+      div[data-testid="stColumn"] > div,
+      div[data-testid="column"] > div { width: 100%; }
+      div[data-testid="stVerticalBlockBorderWrapper"] { height: 100%; }
+      div[data-testid="stVerticalBlockBorderWrapper"] > div,
+      div[data-testid="stVerticalBlockBorderWrapper"] > div
+        > div[data-testid="stVerticalBlock"] {
+          height: 100%;
+          justify-content: space-between;
+      }
     </style>""", unsafe_allow_html=True)
 
 
@@ -321,8 +336,6 @@ def render_console():
             _knob_label(T.SLIDER_ECO, _t("HELP_ECO", ""))
     with a3:
         with st.container(border=True):
-            # 滑块上方自带一行数值(≈1.5rem)，开关没有 → 补等高占位，三卡才齐
-            st.markdown('<div style="height:1.5rem"></div>', unsafe_allow_html=True)
             ally = st.toggle(" ", value=False, key="k_ally",
                              label_visibility="collapsed")
             _knob_label(T.TOGGLE_ALLY, _t("HELP_ALLY", ""))
@@ -737,6 +750,8 @@ def render_appendix(quad):
     with st.expander(T.QUAD_MAP_TITLE, expanded=False):
         render_quadrant_map(highlight=quad, compact=True, show_play=True)
     with st.expander("参数恢复表　(回归估计 vs 埋入真值 · 项目立身之本)", expanded=False):
+        if _edb.IS_FALLBACK:
+            st.warning(_t("FALLBACK_BANNER", ""))
         tab = recovery_table()
         show = tab.assign(
             covered=tab.covered.map({True: "✓", False: "✗"})
@@ -746,8 +761,10 @@ def render_appendix(quad):
         st.dataframe(show, use_container_width=True, hide_index=True)
         st.caption(f"CI 覆盖真值：{int(tab.covered.sum())}/{len(tab)}　"
                    "· 覆盖即证明系数是从数据恢复、而非编造")
-    with st.expander("关于 / 诚实声明", expanded=False):
+    with st.expander(_t("ABOUT_TITLE", "关于 / 诚实声明"), expanded=False):
+        st.markdown(_t("ABOUT_MD", ""))
         st.caption(T.PROXY_NOTE_P3)
+        st.caption(_t("DUAL_BASIS_NOTE", ""))
 
 
 # ══════════════════════════ C 段 · 商业分析简报 ══════════════════════════
