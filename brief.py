@@ -169,6 +169,8 @@ class Readout:
             "a_value": num(self.a_value),
             "alliance": "在盟" if self.in_alliance else "未在盟",
             "competition": self.competition_cn,
+            "verdict_cn": _T("STATE_CN", {}).get(self.verdict_state,
+                                                 self.verdict_state),
         }
 
     def whitelist(self) -> set:
@@ -417,13 +419,19 @@ def fallback_slots(r: Readout) -> dict:
                     f"换电联盟{lab['换电联盟']}，外部原材料价格{lab['原材料冲击']}。"
                     f"账面回报{lab['账面回报']}，价值利差{lab['价值利差']}，"
                     f"份额名次 {v['share_rank']}、价值名次 {v['spread_rank']}。"),
-        "combined": (f"几个动作合起来看，本局落在「{lab['裁决态']}」这一态；"
-                     f"当前评判指标为{v['ruler']}，竞争类型为{v['competition']}。"),
+        # 降级文案刻意【不复述读数】—— 第一段已把数字讲完，这里只讲机理与下一步，
+        # 否则屏上两段会说同一件事。
+        "combined": (f"定价经价格弹性改写销量与单价，生态投资经非价格吸引力改写需求，"
+                     f"外部原材料价格则经成本传导改写单位成本；三条通道先汇入损益，"
+                     f"再由损益分别进入价值与博弈两张记分表。"
+                     f"当前竞争类型为{v['competition']}，"
+                     f"这决定了同象限对手对你这一步的还手力度。"),
         "policy_view": "（本段需要调用模型生成，当前使用引擎读数版简报。）",
         "compete_view": "（本段需要调用模型生成，当前使用引擎读数版简报。）",
-        "conclusion": (f"综合本轮读数：账面回报{lab['账面回报']}、"
-                       f"价值利差{lab['价值利差']}。"
-                       f"是否继续沿当前方向加码，取决于你用哪一项评判指标。"),
+        "conclusion": (f"下一步可从三处着手：一是换一项评判指标复看同一局，"
+                       f"确认结论在不同尺度下是否翻转；二是把定价与生态投资反向对调，"
+                       f"看非价格手段能否替代降价；三是切换城市或象限，"
+                       f"检验当前结果是禀赋决定的，还是定位决定的。"),
     }
 
 
@@ -458,17 +466,27 @@ def build(readout: Readout, api_key: str = "") -> dict:
 # 六、渲染 · 屏上（§一 + §四，约 500 字）
 # ══════════════════════════════════════════════════════════════
 def to_markdown(rep: dict) -> str:
+    """屏上简报 = 两段，无章节大标题（大标题只在导出的完整版里用）。
+
+      第一段：动作与读数复述 —— 全部由 python 填引擎定值字符串，数字最密、零自由度
+      第二段：影响与策略 —— LLM 组织措辞，不碰任何数字
+
+    这样"报数字"和"讲道理"各占一段，读者一眼分得清哪句是算出来的、哪句是解释。
+    """
     s = rep["slots"]
-    parts = [f"**一、本轮摘要**\n\n{s['summary']}",
-             f"**四、总结**\n\n{s['conclusion']}",
-             "_完整分析（二、行动分析　三、策略分析）见导出文档。_"]
+    recap = _T("BRIEF_SCREEN_RECAP", "")
+    para1 = recap.format(**rep["values"]) if recap else s["summary"]
+    para2 = "".join(x for x in (s.get("combined", ""), s.get("conclusion", "")) if x)
+    parts = [para1, para2,
+             f"_{_T('BRIEF_TAIL_HINT', '完整版见导出文档。')}_"]
     if rep["cites"]:
         srcs = []
         for c in rep["cites"]:
             for x in c["sources"]:
                 if x not in srcs:
                     srcs.append(x)
-        parts.append("**引用材料**\n\n" + "\n".join(f"- {x}" for x in srcs))
+        title = _T("BRIEF_CITE_TITLE", "引用材料")
+        parts.append(f"**{title}**\n\n" + "\n".join(f"- {x}" for x in srcs))
     return "\n\n".join(parts)
 
 

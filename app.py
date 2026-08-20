@@ -56,6 +56,7 @@ RIVAL = getattr(T, "RIVAL_COLOR", "#4A5B63")
 ZERO = getattr(T, "ZERO_COLOR", "#C0392B")
 BASEC = getattr(T, "BASE_COLOR", "#8A9A93")
 PRIMARY = SECTION_COLOR.get("A", "#12A47A")
+PANEL_LINE = getattr(T, "PANEL_LINE", "#0A6E4C")  # 两个面板顶线统一墨绿
 
 # Plotly 统一底纹：透明底 + 浅描边，嵌进白卡片里不突兀
 PLOT_LAYOUT = dict(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
@@ -99,13 +100,18 @@ def _inject_css():
           background: #F4F8F6; border: 1px solid #DCE7E2; border-radius: 14px;
           padding: .9rem 1rem .6rem; margin-bottom: .6rem;
       }
+      /* 面板顶线统一墨绿（此前动作组绿、环境组石墨灰，两条颜色不一像两套系统） */
       .panel-t { font-size: .92rem; font-weight: 700; color: #14261F;
-                 border-top: 3px solid var(--accent); padding-top: .5rem; }
+                 border-top: 2px solid #0A6E4C; padding-top: .5rem; }
       .panel-s { font-size: .8rem; color: #7A8A83; font-weight: 400; }
-      /* 三个动作各包一张等高小卡 —— 靠卡片撑齐高度，不做像素级微调 */
-      .knob { background:#F8FBFA; border:1px solid #E9F1ED; border-radius:10px;
-              padding:.5rem .7rem .15rem; min-height: 92px; }
-      .knob-t { font-size:.84rem; color:#3E4F49; font-weight:600; margin-bottom:.1rem; }
+      /* 三个动作统一为「数值行 → 控件 → 名称」的竖直结构：
+         滑块自带数值行而开关没有，故给开关补一行状态文字占位 ——
+         三项的控件因此落在同一条水平线上，且不依赖像素级微调。 */
+      .knob-v { font-size:.86rem; font-weight:600; color:#12A47A;
+                height:1.5rem; line-height:1.5rem; }
+      .knob-t { font-size:.86rem; color:#3E4F49; font-weight:600;
+                margin-top:.15rem; }
+      .knob-t .hint { color:#9AAAA3; cursor:help; margin-left:.25rem; }
       /* KPI 指标卡 */
       .kpi { background:#FFFFFF; border:1px solid #E3ECE8; border-radius:10px;
              padding:.55rem .8rem; box-shadow:0 1px 2px rgba(20,38,31,.04); }
@@ -125,6 +131,20 @@ def _inject_css():
       .vline { border-left:1.5px solid #C7D4CF; height:100%; margin:0 auto; }
       .hline { border-top:1.5px solid #C7D4CF; margin:.35rem 0; }
     </style>""", unsafe_allow_html=True)
+
+
+def _knob_label(text, tip=""):
+    """动作旋钮的名称，渲染在控件【下方】。
+
+    为什么名称在下：滑块的标签高度不一（有的换行、有的不换），标签在上会把三个
+    控件推到不同高度 —— 此前反复对不齐就是这个原因。控件在上、名称在下，
+    三者顶端天然齐平，不依赖任何像素级微调。
+    标签折叠后 Streamlit 的 ⓘ 图标也随之隐藏，故此处用原生 title 提示补回。
+    """
+    tip_attr = f' title="{tip}"' if tip else ""
+    mark = " ⓘ" if tip else ""
+    st.markdown(f'<div class="knob-t"{tip_attr}>{text}{mark}</div>',
+                unsafe_allow_html=True)
 
 
 def _section(key, title, sub=""):
@@ -287,7 +307,7 @@ def render_console():
     quads = list(C.QUAD_PROFILE.keys())
 
     st.markdown(
-        f'<div class="panel" style="--accent:{PRIMARY}">'
+        f'<div class="panel" style="--accent:{PANEL_LINE}">'
         f'<div class="panel-t">{_t("CONSOLE_ACTION_TITLE", "你的动作")}</div></div>',
         unsafe_allow_html=True)
     # 三项各包一张等高小卡：靠卡片撑齐高度，比 CSS 微调稳（此前反复对不齐）
@@ -295,19 +315,21 @@ def render_console():
     with a1:
         with st.container(border=True):
             price_pct = st.slider(T.SLIDER_PRICE, PRICE_RANGE[0], PRICE_RANGE[1], 0,
-                                  step=1, key="k_price", help=_t("HELP_PRICE", ""))
+                                  step=1, key="k_price", label_visibility="collapsed")
+            _knob_label(T.SLIDER_PRICE, _t("HELP_PRICE", ""))
     with a2:
         with st.container(border=True):
             eco = st.slider(T.SLIDER_ECO, 0.0, C.ECO_SLIDER_MAX, 0.0, step=0.05,
-                            key="k_eco", help=_t("HELP_ECO", ""))
+                            key="k_eco", label_visibility="collapsed")
+            _knob_label(T.SLIDER_ECO, _t("HELP_ECO", ""))
     with a3:
         with st.container(border=True):
-            st.markdown(T.TOGGLE_ALLY)
             ally = st.toggle(" ", value=False, key="k_ally",
                              label_visibility="collapsed")
+            _knob_label(T.TOGGLE_ALLY, _t("HELP_ALLY", ""))
 
     st.markdown(
-        f'<div class="panel" style="--accent:{RIVAL}">'
+        f'<div class="panel" style="--accent:{PANEL_LINE}">'
         f'<div class="panel-t">{_t("CONSOLE_ENV_TITLE", "牌面与环境")}'
         f'　<span class="panel-s">{_t("CONSOLE_ENV_HINT", "")}</span></div></div>',
         unsafe_allow_html=True)
@@ -543,8 +565,8 @@ def _quad_card(col, q, highlight=None, compact=False, show_play=True):
     c = QUAD_COLOR.get(q, PRIMARY)
     rows = [f'<div class="h" style="border-color:{c};color:{c}">{cell["name"]}</div>']
     if q == highlight:
-        rows.append(f'<div class="tag" style="background:{c}22;color:{c}">'
-                    f'◀ 你选的象限</div>')
+        rows.append(f'<div class="tag" style="background:{c};color:#fff;'
+                    f'font-weight:700">● 当前所在象限</div>')
     if compact:
         if show_play:
             rows.append(f'<div class="f">打法 · {cell["play"]}</div>')
@@ -553,10 +575,16 @@ def _quad_card(col, q, highlight=None, compact=False, show_play=True):
             rows.append(f'<div class="f"><b>{T.QUAD_FIELD[key]}</b>：{cell[key]}</div>')
         rows.append(f'<div class="f"><b>{T.QUAD_FIELD["params"]}</b>：'
                     f'{_quad_stats(q)}</div>')
+    # 四格等高：compact 与详版各有一个固定高度，保证 2×2 严格对齐（空行可接受）
+    h = 96 if compact else 210
+    # 当前象限：加粗描边 + 外发光环 + 底色加深，作强提醒
+    sel = (f"border-width:2px;border-color:{c};"
+           f"box-shadow:0 0 0 3px {c}22, 0 2px 10px rgba(20,38,31,.10);"
+           if q == highlight else f"border-color:{c}55;")
+    bg = f"{c}22" if q == highlight else f"{c}12"
     col.markdown(
-        f'<div class="qcard" style="background:{c}14;border-color:{c}55;'
-        f'{"min-height:auto" if compact else ""}">{"".join(rows)}</div>',
-        unsafe_allow_html=True)
+        f'<div class="qcard" style="background:{bg};{sel}min-height:{h}px">'
+        f'{"".join(rows)}</div>', unsafe_allow_html=True)
 
 
 def render_quadrant_map(highlight=None, compact=False, show_play=True):
@@ -583,8 +611,8 @@ def render_quadrant_map(highlight=None, compact=False, show_play=True):
     # 上排：Q1 | 轴 | Q2
     l, mid, r = st.columns([1, 0.06, 1], gap="small")
     _quad_card(l, "Q1", highlight, compact, show_play)
-    mid.markdown('<div class="vline" style="height:100%"></div>',
-                 unsafe_allow_html=True)
+    mid.markdown(f'<div class="vline" style="height:{96 if compact else 210}px">'
+                 f'</div>', unsafe_allow_html=True)
     _quad_card(r, "Q2", highlight, compact, show_play)
 
     # 横轴带：左＝轴标题 + 左端点，右＝右端点
@@ -598,8 +626,8 @@ def render_quadrant_map(highlight=None, compact=False, show_play=True):
     # 下排：Q4 | 轴 | Q3
     l2, mid2, r2 = st.columns([1, 0.06, 1], gap="small")
     _quad_card(l2, "Q4", highlight, compact, show_play)
-    mid2.markdown('<div class="vline" style="height:100%"></div>',
-                  unsafe_allow_html=True)
+    mid2.markdown(f'<div class="vline" style="height:{96 if compact else 210}px">'
+                  f'</div>', unsafe_allow_html=True)
     _quad_card(r2, "Q3", highlight, compact, show_play)
 
     st.markdown(f'<div style="text-align:center" class="axis-e">'
@@ -704,6 +732,9 @@ def render_brief(k, self_read, game_read):
 
         if rep["mode"] == "live":
             st.caption(_t("BRIEF_MODE_LIVE", ""))
+        elif rep.get("error") == "未填写 API Key":
+            # 没填 Key 不是"失败"，是正常的免费路径 —— 别用报错口吻吓人
+            st.info(_t("BRIEF_MODE_CACHE", "当前为演示版简报。"))
         else:
             st.warning(_t("BRIEF_MODE_FALLBACK", "以下为引擎读数版简报。"))
             if rep.get("error"):
