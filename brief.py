@@ -272,6 +272,12 @@ SLOTS = ("summary", "combined", "policy_view", "compete_view", "conclusion")
 
 _SYSTEM = """你是一位面向管理层的战略分析写作助手。你的唯一任务是【组织措辞】。
 
+分析主体（务必看清）：
+本简报分析的是【一家车企】。它的"选址城市"与"战略象限"只是这家企业的两个属性——
+城市说明它在哪里建厂、继承了哪份区域禀赋；象限说明它做什么档次、什么动力路线的车。
+**绝不要把城市当成分析对象**：不写"某市应如何如何"，只写"这家企业应如何如何"。
+提到城市时，只能作为这家企业的区位条件来提（例如"依托当地的配套优势"）。
+
 绝对禁止（违反则整段作废）：
 1. 不得写出任何具体数值：百分比、金额、倍数、名次数字，一律不写。
 2. 不得做任何计算或比较换算，包括"腰斩""翻倍""高出三成""接近一半"这类
@@ -295,7 +301,11 @@ _SYSTEM = """你是一位面向管理层的战略分析写作助手。你的唯�
 
 
 def _prompt(labels: dict, docs: dict) -> str:
-    lab = "\n".join(f"· {k}：{v}" for k, v in labels.items())
+    # 先用一句话把主体钉死，再列其余标签 —— 否则模型会把城市误当成分析对象（实测）
+    subject = (f"分析对象：一家落址于{labels.get('城市', '')}、"
+               f"定位为「{labels.get('象限', '')}」的车企。")
+    rest = {k: v for k, v in labels.items() if k not in ("城市", "象限")}
+    lab = subject + "\n" + "\n".join(f"· {k}：{v}" for k, v in rest.items())
     def _fmt(items):
         return "\n".join(f"[{c['title']}]\n{c['body']}" for c in items) or "（无）"
     return (f"局面标签：\n{lab}\n\n"

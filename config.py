@@ -273,7 +273,7 @@ LLM_SIGNUP_URL = "https://open.bigmodel.cn"
 
 # 生成参数：温度略低于闲聊场景 —— 简报要的是稳定措辞，不是创意
 LLM_TEMPERATURE = 0.6
-LLM_MAX_TOKENS  = 2000
+LLM_MAX_TOKENS  = 4000      # 五段中文近千字，2000 会把 JSON 截断在半截（实测）
 LLM_TIMEOUT_S   = 60
 
 # 检索：每个视角取几条。语料仅 31 条，k=3 已能覆盖「锚定 2 条 + 补位 1 条」
