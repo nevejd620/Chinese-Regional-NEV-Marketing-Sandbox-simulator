@@ -312,6 +312,10 @@ _SYSTEM = """你是一位面向管理层的战略分析写作助手。你的唯�
 · 城市名只能出现在"依托当地…""受本地配套限制…"这类**区位状语**里，
   绝不可作为句子的主语。写出"西安应该…""合肥需要…"即为错误。
 · 若参考材料为空，就只依据局面标签写，不要编造政策内容，也不要说"材料未提供"。
+· 不要照搬参考材料的标题或其中的英文代号、企业名清单；把材料的观点用自己的话写进句子。
+· 禁止空话套话：不得出现"提升核心竞争力""实现可持续发展""推动高质量发展""赋能"
+  这类不含具体动作的词组。每一句建议都要落到可执行的动作上
+  （例如"淘汰回报最低的入门车型"而非"优化产品结构"）。
 
 再次强调两点：
 一、分析对象是【一家车企】，不是城市；主语用「该企业」。
@@ -325,8 +329,21 @@ def _prompt(labels: dict, docs: dict) -> str:
                f"· 所在地（区位背景，非分析对象）：{labels.get('城市', '')}")
     rest = {k: v for k, v in labels.items() if k not in ("城市", "象限")}
     lab = subject + "\n" + "\n".join(f"· {k}：{v}" for k, v in rest.items())
+    def _clean_title(t: str) -> str:
+        """剥掉切片标题里的内部键名前缀。
+
+        strategy.md 的标题形如「WIN_ALONE：从份额最大化转向价值最大化」，
+        直接丢进 prompt，模型会照抄"借鉴 WIN_ALONE 的理念"——内部键名漏进正文（实测）。
+        这里只保留冒号后的人话部分。
+        """
+        head, sep, tail = t.partition("：")
+        if sep and (head in TG.STATES or re.match(r"^Q[1-4]\b", head)):
+            return tail.strip() or head
+        return t
+
     def _fmt(items):
-        return "\n".join(f"[{c['title']}]\n{c['body']}" for c in items) or "（无）"
+        return "\n".join(f"[{_clean_title(c['title'])}]\n{c['body']}"
+                          for c in items) or "（无）"
     return (f"局面标签：\n{lab}\n\n"
             f"参考材料 · 政策类：\n{_fmt(docs.get('policy', []))}\n\n"
             f"参考材料 · 战略类：\n{_fmt(docs.get('strategy', []))}\n\n"
