@@ -170,6 +170,8 @@ def verdict_sentence(v):
 QUAD_MAP_TITLE = "先看懂象限 · 你的车企属于哪种类型"
 QUAD_MAP_INTRO = "四个象限由两根「博弈轴」切出：横轴＝动力路线，纵轴＝价格层级。你选的象限决定价格弹性、竞争程度与策略。"
 QUAD_MAP_NOTE  = "象限 = 动力路线 × 价格层级（powertrain_focus × price_tier 重建）。悬浮各卡的 ⓘ 看该象限的价格弹性 β / 定价权 θ / 平均售价 ASP / 毛利。"
+# 四象限完整说明的折叠标签。窄屏下卡片只留「象限特征」，其余三行折进这里。
+QUAD_DETAILS_LABEL = "展开四象限完整说明（手机端建议点开）"
 
 QUAD_AXIS_Y_TOP = "▲ Premium · 高端 / 高溢价"
 QUAD_AXIS_Y_BOT = "▼ Mass · 中低端"

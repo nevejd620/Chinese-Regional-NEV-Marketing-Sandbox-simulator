@@ -569,13 +569,13 @@ _QUAD_CSS = """
 .qm-cell{ height:100%; box-sizing:border-box; }
 .qm-xband{
   grid-column:1 / -1; display:flex; justify-content:space-between;
-  align-items:flex-end; gap:.5rem; padding:.45rem .1rem;
+  align-items:flex-end; gap:.5rem; padding:.85rem .1rem;
   border-top:1.5px solid #C7D4CF;
   border-bottom:1.5px solid #C7D4CF;
 }
 .qm-card{
   height:100%; box-sizing:border-box; border:1px solid; border-radius:12px;
-  padding:.8rem .95rem; margin:.28rem;
+  padding:.8rem .95rem; margin:.28rem .28rem .45rem;
 }
 .qm-h{ font-weight:700; font-size:.98rem; line-height:1.35;
        border-left:4px solid; padding-left:.5rem; margin-bottom:.5rem; }
@@ -587,12 +587,16 @@ _QUAD_CSS = """
 
 /* 窄屏：保持 2×2，只缩字号、只留首行。绝不换单列——一列就没有象限地图了。 */
 @media (max-width:640px){
-  .qm-card{ padding:.55rem .6rem; margin:.18rem; border-radius:8px; }
+  .qm-card{ border-radius:8px; }
   .qm-h{ font-size:.78rem; border-left-width:3px; padding-left:.4rem;
          margin-bottom:.35rem; }
   .qm-f{ font-size:.71rem; line-height:1.45; }
   .qm-f.qm-more{ display:none; }        /* 详情降级到下方 expander */
-  .qm-xband{ flex-direction:column; align-items:flex-start; gap:.15rem; }
+  .qm-xband{ flex-direction:column; align-items:stretch;
+             gap:.1rem; padding:.5rem .55rem; }
+  .qm-xband > div{ min-width:0; overflow-wrap:anywhere;
+                   text-align:left; }
+  .qm-card{ padding:.55rem .6rem; margin:.18rem .18rem .3rem; }
   .qm-axt,.qm-axe{ font-size:.68rem; }
 }
 </style>
@@ -664,7 +668,8 @@ def render_quadrant_map(highlight=None, compact=False, show_play=True):
 
     # 窄屏被 CSS 藏掉的三行，用原生 expander 兜住（桌面端展开亦无害）
     if not compact:
-        with st.expander("展开四象限完整说明"):
+        with st.expander(getattr(T, "QUAD_DETAILS_LABEL",
+                         "展开四象限完整说明（手机端建议点开）")):
             for q in ("Q1", "Q2", "Q4", "Q3"):
                 cell = T.QUAD_CELL[q]
                 st.markdown(f'**{cell["name"]}**')
