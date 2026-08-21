@@ -16,7 +16,7 @@ Phase 4 归并版：原「Phase 2 财务解剖」与「Phase 3 定价博弈」�
   落实宪章 §5 唯一红线（基座只认通用名）。它是**外生环境**、不是你的动作，故移出动作组。
 - 控制台分两组：**我的动作**（定价 / 生态投资 / 联盟，守 ≤3）与
   **牌面与环境**（城市选址 / 象限 / 外生冲击 / 评估指标，不占动作预算，见宪章 §10.2 修订）。
-- 版面：结论前置 → 控制台 → 板块 A（我自己 · ROE 射线 + spread 射线）
+- 版面：结论前置 → 控制台 → 板块 A（我自己 · 股东回报射线 + 价值利差射线）
         → 图一 | 图二（并排 · 打价格 vs 结生态）
         → 总裁办简报（Phase 4 占位）→ 折叠区（象限地图 / 参数恢复表 / 诚实声明）。
 
@@ -165,7 +165,7 @@ def _index_of(options, value, fallback=0):
         return fallback
 
 
-# ══════════════════════════ 图 A · 我自己（ROE / 价值利差 上下双线）══════════════════════════
+# ═════════════════ 板块 A · 我自己（股东回报 / 价值利差 上下双线）═════════════════
 def _panel(days, p05, p50, p95, prev_p50, color, rgba, y_title,
            zero_ref, zero_label, base_ref, base_label,
            this_label, prev_label):
@@ -415,7 +415,7 @@ def render_console():
 
 # ══════════════════════════ 图 A 区（我自己）══════════════════════════
 def render_self(k):
-    """原 Phase 2：ROE 射线 + 价值利差射线 + 动态裁决 + 基线杜邦。返回读数包（供简报）。"""
+    """原 Phase 2：股东回报射线 + 价值利差射线 + 动态裁决 + 基线杜邦。返回读数包（供简报）。"""
     city, quad = k["city"], k["quad"]
     # 生态投资 → 需求侧位移（%）：原第三滑块的正式驱动通道
     demand_shift = k["eco"] / C.ECO_SLIDER_MAX * ECO_TO_DEMAND_PCT if C.ECO_SLIDER_MAX else 0.0
@@ -442,7 +442,7 @@ def render_self(k):
     prev = st.session_state.get(skey)
 
     _section("A", _t("SEC_A_TITLE", "A · 你自己"), _t("SEC_A_SUB", ""))
-    st.caption(_t("SEC_A_BASE_NOTE", "基准 ROE：`{v}`").format(
+    st.caption(_t("SEC_A_BASE_NOTE", "基准股东回报率：`{v}`").format(
         v=f"{config['baseline'][city]['roe_base']:+.1%}"))
 
     g1, g2 = st.columns(2, gap="large")
