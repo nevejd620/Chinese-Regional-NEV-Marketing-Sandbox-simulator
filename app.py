@@ -357,9 +357,9 @@ def render_console():
                             key="k_eco", label_visibility="collapsed")
         with a3:
             _knob_label(T.TOGGLE_ALLY, _t("HELP_ALLY", ""))
-            # 滑块在轨道上方自带一行当前值，开关没有 → 补等高占位，
-            # 让三列的控件本体也落在同一条水平线上。
-            st.markdown('<div style="height:1.55rem"></div>', unsafe_allow_html=True)
+            # 不要在这里加占位：st.toggle 自身的上下 margin 已经约等于
+            # 滑块的「当前值行 + 轨道」总高，加了反而把开关推低约 28px。
+            # （实测：加 1.55rem → 开关 y≈116 vs 滑块轨道 y≈88。）
             ally = st.toggle(" ", value=False, key="k_ally",
                              label_visibility="collapsed")
 
