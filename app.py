@@ -111,8 +111,13 @@ def _inject_css():
          三项的控件因此落在同一条水平线上，且不依赖像素级微调。 */
       .knob-v { font-size:.86rem; font-weight:600; color:#12A47A;
                 height:1.5rem; line-height:1.5rem; }
+      /* 旋钮名称盒：固定两行高、文字底对齐。
+         名称在控件【上方】，三列名称天然齐平；两行 vs 一行的差异被固定
+         高度吸收，不会把控件推到不同高度。此前"名称在下"的方案顶端齐平
+         但名称参差，是同一问题的另一面。 */
       .knob-t { font-size:.86rem; color:#3E4F49; font-weight:600;
-                margin-top:.15rem; }
+                min-height:2.5em; display:flex; align-items:flex-end;
+                margin:0 0 .2rem; line-height:1.25; }
       .knob-t .hint { color:#9AAAA3; cursor:help; margin-left:.25rem; }
       /* KPI 指标卡 */
       .kpi { background:#FFFFFF; border:1px solid #E3ECE8; border-radius:10px;
@@ -123,11 +128,13 @@ def _inject_css():
 
 
 def _knob_label(text, tip=""):
-    """动作旋钮的名称，渲染在控件【下方】。
+    """动作旋钮的名称，渲染在控件【上方】。
 
-    为什么名称在下：滑块的标签高度不一（有的换行、有的不换），标签在上会把三个
-    控件推到不同高度 —— 此前反复对不齐就是这个原因。控件在上、名称在下，
-    三者顶端天然齐平，不依赖任何像素级微调。
+    演变：原先放在控件下方，理由是"滑块标签高度不一，放上面会把控件推歪"。
+    但那样只是把不齐转移到了名称上（三列内容高度不同 → 名称参差）。
+    现在名称在上，且 .knob-t 有**固定两行盒高**：一行 / 两行的差异被盒子吸收，
+    控件顶端仍然齐平，名称也齐平。两头都对，因为盒高由我们自己控制，
+    不依赖 Streamlit 的 DOM。
     标签折叠后 Streamlit 的 ⓘ 图标也随之隐藏，故此处用原生 title 提示补回。
     """
     tip_attr = f' title="{tip}"' if tip else ""
@@ -341,17 +348,20 @@ def render_console():
     with st.container(border=True):
         a1, a2, a3 = st.columns(3, gap="medium")
         with a1:
+            _knob_label(T.SLIDER_PRICE, _t("HELP_PRICE", ""))
             price_pct = st.slider(T.SLIDER_PRICE, PRICE_RANGE[0], PRICE_RANGE[1], 0,
                                   step=1, key="k_price", label_visibility="collapsed")
-            _knob_label(T.SLIDER_PRICE, _t("HELP_PRICE", ""))
         with a2:
+            _knob_label(T.SLIDER_ECO, _t("HELP_ECO", ""))
             eco = st.slider(T.SLIDER_ECO, 0.0, C.ECO_SLIDER_MAX, 0.0, step=0.05,
                             key="k_eco", label_visibility="collapsed")
-            _knob_label(T.SLIDER_ECO, _t("HELP_ECO", ""))
         with a3:
+            _knob_label(T.TOGGLE_ALLY, _t("HELP_ALLY", ""))
+            # 滑块在轨道上方自带一行当前值，开关没有 → 补等高占位，
+            # 让三列的控件本体也落在同一条水平线上。
+            st.markdown('<div style="height:1.55rem"></div>', unsafe_allow_html=True)
             ally = st.toggle(" ", value=False, key="k_ally",
                              label_visibility="collapsed")
-            _knob_label(T.TOGGLE_ALLY, _t("HELP_ALLY", ""))
 
     st.markdown(
         f'<div class="panel" style="--accent:{PANEL_LINE}">'
