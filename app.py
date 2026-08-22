@@ -194,9 +194,11 @@ def _panel(days, p05, p50, p95, prev_p50, color, rgba, y_title,
         fig.add_hline(y=base_ref, line=dict(color=BASEC, dash="dash"),
                       annotation_text=base_label, annotation_position="bottom left",
                       annotation_font=dict(color=BASEC, size=11))
-    fig.update_layout(height=250, margin=dict(l=10, r=80, t=20, b=8),
+    fig.update_layout(height=270, margin=dict(l=10, r=80, t=16, b=8),
                       yaxis_title=y_title, yaxis_tickformat=".0%",
-                      legend=dict(orientation="h", y=1.18), showlegend=True,
+                      # 图例放图下方：零线标注固定在 top left，图例若也在顶部，
+                      # 右图（数值全为负、零线贴顶）必然与之重叠。
+                      legend=dict(orientation="h", y=-0.22, x=0), showlegend=True,
                       **PLOT_LAYOUT)
     return fig
 
@@ -452,7 +454,8 @@ def render_self(k):
                          (prev["roe"] if prev else None), PRIMARY, "rgba(18,164,122,A%)",
                          T.AXIS_ROE_LABEL, zero_ref=False, zero_label="",
                          base_ref=res["roe_base"], base_label=T.ROE_BASE_LABEL,
-                         this_label=T.SHADE_THIS_LABEL, prev_label=T.SHADE_PREV_LABEL)
+                         this_label=_t("SHADE_THIS_ROE", "当前股东回报率(%)"),
+                         prev_label=T.SHADE_PREV_LABEL)
         roe_fig.update_layout(xaxis_title=T.AXIS_TIME_LABEL)
         st.plotly_chart(roe_fig, use_container_width=True)
         if T.ROE_NOTE:
@@ -464,7 +467,8 @@ def render_self(k):
                              (prev["spr"] if prev else None), ZERO, "rgba(192,57,43,A%)",
                              T.AXIS_SPR_LABEL, zero_ref=True, zero_label=T.ZERO_LINE_LABEL,
                              base_ref=None, base_label="",
-                             this_label=T.SHADE_THIS_LABEL, prev_label=T.SHADE_PREV_LABEL)
+                             this_label=_t("SHADE_THIS_SPREAD", "当前价值利差(%)"),
+                             prev_label=T.SHADE_PREV_LABEL)
             spr_fig.update_layout(xaxis_title=T.AXIS_TIME_LABEL)
             st.plotly_chart(spr_fig, use_container_width=True)
             if T.SPREAD_NOTE:
