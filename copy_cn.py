@@ -69,7 +69,9 @@ SPREAD_NOTE       = "红色实线表示推演天数内随滑块实时变动的�
 SHADE_THIS_ROE    = "当前股东回报率(%)"
 SHADE_THIS_SPREAD = "当前价值利差(%)"
 SHADE_THIS_LABEL  = SHADE_THIS_ROE          # 兼容旧引用
-SHADE_PREV_LABEL  = "最近一次股东回报率(%)"    # 上一次（如「上次拨动」）
+SHADE_PREV_ROE    = "最近一次股东回报率(%)"
+SHADE_PREV_SPREAD = "最近一次价值利差(%)"
+SHADE_PREV_LABEL  = SHADE_PREV_ROE          # 兼容旧引用
 SHADE_NOTE        = "阴影表现本次拨动与上次拨动的差异（变化越大、阴影越宽）"    # 阴影含义（如「阴影 = 你这一拨推动的量」，可留 ""）
 
 # ══════════════════════════════════════════════════════════════
