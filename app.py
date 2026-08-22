@@ -23,6 +23,7 @@ Phase 4 归并版：原「Phase 2 财务解剖」与「Phase 3 定价博弈」�
 Run:  streamlit run app.py
 """
 from pathlib import Path
+import html, re          # _title_attr：净化悬浮提示
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -127,6 +128,23 @@ def _inject_css():
     </style>""", unsafe_allow_html=True)
 
 
+def _title_attr(tip):
+    """把文案净化成可安全放进 HTML title= 的一行。
+
+    两个坑：
+    ① 文案里的空行（\n\n）会**切断 Streamlit 的 raw HTML 块** —— markdown 解析器
+       在空行处收尾，属性后半截就被当普通文字渲染到页面上（曾整段提示漏到界面里）。
+    ② 原生 title 只认纯文本，`**加粗**` 会原样显示成星号。
+    故：去 markdown 标记 → HTML 转义（含引号）→ 换行转 &#10;（title 里显示为换行）。
+    """
+    if not tip:
+        return ""
+    plain = re.sub(r"\*\*(.+?)\*\*", r"\1", str(tip))       # 去掉 **加粗**
+    plain = html.escape(plain, quote=True)                   # " & < > 转义
+    plain = re.sub(r"\n{2,}", "\n", plain).replace("\n", "&#10;")
+    return f' title="{plain}"'
+
+
 def _knob_label(text, tip=""):
     """动作旋钮的名称，渲染在控件【上方】。
 
@@ -137,10 +155,8 @@ def _knob_label(text, tip=""):
     不依赖 Streamlit 的 DOM。
     标签折叠后 Streamlit 的 ⓘ 图标也随之隐藏，故此处用原生 title 提示补回。
     """
-    tip_attr = f' title="{tip}"' if tip else ""
-    mark = " ⓘ" if tip else ""
-    st.markdown(f'<div class="knob-t"{tip_attr}>{text}{mark}</div>',
-                unsafe_allow_html=True)
+    st.markdown(f'<div class="knob-t"{_title_attr(tip)}>{text}'
+                f'{" ⓘ" if tip else ""}</div>', unsafe_allow_html=True)
 
 
 def _section(key, title, sub=""):
