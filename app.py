@@ -665,6 +665,8 @@ _QUAD_CSS = """
   height:100%; box-sizing:border-box; border:1px solid; border-radius:12px;
   padding:.8rem .95rem; margin:0;
 }
+.qm-det{ border-left:4px solid var(--qm-accent); border-radius:8px;
+         padding:.65rem .85rem; margin:0 0 .55rem; }
 .qm-h{ font-weight:700; font-size:.98rem; line-height:1.35;
        border-left:4px solid; padding-left:.5rem; margin-bottom:.5rem; }
 .qm-f{ font-size:.82rem; color:#3E4F49; line-height:1.6; margin-bottom:.32rem; }
@@ -759,12 +761,22 @@ def render_quadrant_map(highlight=None, compact=False, show_play=True):
     if not compact:
         with st.expander(getattr(T, "QUAD_DETAILS_LABEL",
                          "展开四象限完整说明（手机端建议点开）")):
+            # 用象限色复刻地图卡片的样式：纯 markdown 全是黑字，
+            # 四段读下来分不清哪段是哪个象限（手机端尤其），也和上方地图对不上。
+            # 配色规则不变——象限色＝"你是谁"，单一真相源仍是 copy_cn.QUAD_COLOR。
             for q in ("Q1", "Q2", "Q4", "Q3"):
                 cell = T.QUAD_CELL[q]
-                st.markdown(f'**{cell["name"]}**')
-                for key in ("feature", "anchors", "strategy"):
-                    st.markdown(f'- **{T.QUAD_FIELD[key]}**：{cell[key]}')
-                st.markdown(f'- **{T.QUAD_FIELD["params"]}**：{_quad_stats(q)}')
+                c = QUAD_COLOR.get(q, PRIMARY)
+                rows = "".join(
+                    f'<div class="qm-f"><b>{T.QUAD_FIELD[k]}</b>：{cell[k]}</div>'
+                    for k in ("feature", "anchors", "strategy"))
+                rows += (f'<div class="qm-f"><b>{T.QUAD_FIELD["params"]}</b>：'
+                         f'{_quad_stats(q)}</div>')
+                st.markdown(
+                    f'<div class="qm-det" style="--qm-accent:{c};background:{c}0F">'
+                    f'<div class="qm-h" style="border-color:{c};color:{c}">'
+                    f'{cell["name"]}</div>{rows}</div>',
+                    unsafe_allow_html=True)
 
     if not compact:
         st.caption(T.QUAD_MAP_NOTE)
