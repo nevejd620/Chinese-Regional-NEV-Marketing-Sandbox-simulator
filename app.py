@@ -977,6 +977,11 @@ def render_sandbox():
                 quad=T.QUAD_CELL[k["quad"]]["short"]))
         else:
             st.markdown(f"### {T.verdict_sentence(game_read['verdict'])}")
+            # 名次是最有冲击力的信号（份额第 1 / 价值第 6），原先只在图一下方，
+            # 拨完滑块要滚两屏才看得到。复用 render_game 已算好的同一行读数，
+            # 不重算 → 两处永远一致；图一下方那份保留（在图的语境里它是图注）。
+            if game_read.get("readout_c1"):
+                st.caption(game_read["readout_c1"])
             # 洞见收进折叠区：折叠态只占一行，展开才是完整那段。
             # 原先全拼在裁决句里，CREATE_TRAIL 达 105 字 / 手机 9 行，
             # 把控制台推出首屏 —— 结论前置反而失效（宪章 §6）。
