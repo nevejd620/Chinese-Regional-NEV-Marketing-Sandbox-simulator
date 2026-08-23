@@ -192,23 +192,27 @@ def _index_of(options, value, fallback=0):
 def _panel(days, p05, p50, p95, prev_p50, color, rgba, y_title,
            zero_ref, zero_label, base_ref, base_label,
            this_label, prev_label):
-    """一个分区面板：p5–p95 带 + 中位线 +（有上次则）对比阴影 + 参考线。文案全走 copy_cn。"""
+    """一个分区面板：p5–p95 置信带 + 中位线 +（有上次则）上次的点线 + 参考线。
+
+    阴影只用于置信带一件事；「对比上次」用线不用面，避免两片同色阴影混淆。
+    文案全走 copy_cn。
+    """
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=days, y=p95, mode="lines", line=dict(width=0),
                              showlegend=False, hoverinfo="skip"))
     fig.add_trace(go.Scatter(x=days, y=p05, mode="lines", line=dict(width=0),
-                             fill="tonexty", fillcolor=rgba.replace("A%", "0.13"),
+                             fill="tonexty", fillcolor=rgba.replace("A%", "0.17"),
                              name="p5–p95 置信带"))
+    # 「对比上次」曾在中位线与上次线之间再填一层同色阴影（0.22）。已移除：
+    # 与 p5–p95 置信带同色系、仅差透明度，且被夹在中间又窄，两片阴影视觉上
+    # 分不开 —— 反而让人以为置信带不存在。现在【一片阴影只有一个含义】＝置信带；
+    # 「对比上次」由灰点线单独承担，仍是定性/方向性表述（Phase 2 P2.9 不变）。
     if prev_p50 is not None:
         fig.add_trace(go.Scatter(x=days, y=prev_p50, mode="lines",
                                  line=dict(color="#B6C3BD", width=1.4, dash="dot"),
                                  name=prev_label))
-        fig.add_trace(go.Scatter(x=days, y=p50, mode="lines", fill="tonexty",
-                                 fillcolor=rgba.replace("A%", "0.22"),
-                                 line=dict(color=color, width=2.6), name=this_label))
-    else:
-        fig.add_trace(go.Scatter(x=days, y=p50, mode="lines",
-                                 line=dict(color=color, width=2.6), name=this_label))
+    fig.add_trace(go.Scatter(x=days, y=p50, mode="lines",
+                             line=dict(color=color, width=2.6), name=this_label))
     if zero_ref:
         # 标注放右侧：图例在左上角，零线贴顶时（价值利差图数值全为负）
         # 若标注也在 top left，两者必然重叠。
@@ -626,7 +630,8 @@ def render_game(k):
     return dict(verdict=v, share=you1["share"], spread_game=you1["spread"],
                 a_value=you2["a_value"], in_alliance=you2["in_alliance"],
                 competition_type=c1["competition_type"],
-                readout_c1=r1)          # 首屏复用同一行读数，见 render_sandbox
+                readout_c1=r1)          # 透传：曾试过在首屏复用，因裁决句已占满
+                                        # 手机首屏而撤回；留着备用，无副作用
 
 
 # ══════════════════════════ 象限地图 ══════════════════════════
@@ -972,11 +977,13 @@ def render_sandbox():
                 quad=T.QUAD_CELL[k["quad"]]["short"]))
         else:
             st.markdown(f"### {T.verdict_sentence(game_read['verdict'])}")
-            # 名次是最有冲击力的信号（份额第 1 / 价值第 6），但原先只在图一下方，
-            # 拨完滑块要滚两屏才看得到。此处复用 render_game already 算好的同一行，
-            # 不重算、不新增概念；图一下方那份保留（在图的语境里它是图注）。
-            if game_read.get("readout_c1"):
-                st.caption(game_read["readout_c1"])
+            # 洞见收进折叠区：折叠态只占一行，展开才是完整那段。
+            # 原先全拼在裁决句里，CREATE_TRAIL 达 105 字 / 手机 9 行，
+            # 把控制台推出首屏 —— 结论前置反而失效（宪章 §6）。
+            _why = _t("VERDICT_WHY", {}).get(game_read["verdict"].get("state"))
+            if _why:
+                with st.expander(_t("VERDICT_WHY_LABEL", "为什么会这样")):
+                    st.write(_why)
             # 两套口径（自身锚基线财报 / 裁决锚象限单位经济）符号可以相反。
             # DUAL_BASIS_NOTE 在简报末尾与 About，但矛盾出现在首屏，故此处即时点破。
             if _sign_conflict(self_read.get("spread_end"), game_read.get("spread_game")):
