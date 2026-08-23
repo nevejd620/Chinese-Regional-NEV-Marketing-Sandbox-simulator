@@ -62,7 +62,10 @@ PRIMARY = SECTION_COLOR.get("A", "#12A47A")
 PANEL_LINE = getattr(T, "PANEL_LINE", "#0A6E4C")  # 两个面板顶线统一墨绿
 
 # Plotly 统一底纹：透明底 + 浅描边，嵌进白卡片里不突兀
-PLOT_LAYOUT = dict(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+# 背景给白，不用全透明：透明在页面上看着一样（页底本就近白），
+# 但用 Plotly 的相机按钮导出 PNG 时会得到透明底 —— 贴进深色幻灯片或
+# 社媒预览里，文字与坐标轴会整片消失。
+PLOT_LAYOUT = dict(paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF",
                    font=dict(color="#14261F", size=12),
                    xaxis=dict(gridcolor="#E7EFEB", zerolinecolor="#DCE7E2"),
                    yaxis=dict(gridcolor="#E7EFEB", zerolinecolor="#DCE7E2"))
@@ -991,8 +994,10 @@ def render_sandbox():
                     st.write(_why)
             # 两套口径（自身锚基线财报 / 裁决锚象限单位经济）符号可以相反。
             # DUAL_BASIS_NOTE 在简报末尾与 About，但矛盾出现在首屏，故此处即时点破。
+            # 用折叠区而非 caption：这段有四段，直接铺开会把控制台推出首屏（同 P5.8）。
             if _sign_conflict(self_read.get("spread_end"), game_read.get("spread_game")):
-                st.caption(_t("DUAL_BASIS_HINT", ""))
+                with st.expander(_t("DUAL_BASIS_LABEL", "为什么两处结论不一样")):
+                    st.markdown(_t("DUAL_BASIS_HINT", ""))
 
     # ── C 段 · 商业分析简报（Phase 4）──
     render_brief(k, self_read, game_read)
