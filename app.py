@@ -625,7 +625,8 @@ def render_game(k):
 
     return dict(verdict=v, share=you1["share"], spread_game=you1["spread"],
                 a_value=you2["a_value"], in_alliance=you2["in_alliance"],
-                competition_type=c1["competition_type"])
+                competition_type=c1["competition_type"],
+                readout_c1=r1)          # 首屏复用同一行读数，见 render_sandbox
 
 
 # ══════════════════════════ 象限地图 ══════════════════════════
@@ -971,6 +972,11 @@ def render_sandbox():
                 quad=T.QUAD_CELL[k["quad"]]["short"]))
         else:
             st.markdown(f"### {T.verdict_sentence(game_read['verdict'])}")
+            # 名次是最有冲击力的信号（份额第 1 / 价值第 6），但原先只在图一下方，
+            # 拨完滑块要滚两屏才看得到。此处复用 render_game already 算好的同一行，
+            # 不重算、不新增概念；图一下方那份保留（在图的语境里它是图注）。
+            if game_read.get("readout_c1"):
+                st.caption(game_read["readout_c1"])
             # 两套口径（自身锚基线财报 / 裁决锚象限单位经济）符号可以相反。
             # DUAL_BASIS_NOTE 在简报末尾与 About，但矛盾出现在首屏，故此处即时点破。
             if _sign_conflict(self_read.get("spread_end"), game_read.get("spread_game")):
