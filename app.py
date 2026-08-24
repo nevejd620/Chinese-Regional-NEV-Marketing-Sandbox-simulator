@@ -16,7 +16,7 @@ Phase 4 归并版：原「Phase 2 财务解剖」与「Phase 3 定价博弈」�
   落实宪章 §5 唯一红线（基座只认通用名）。它是**外生环境**、不是你的动作，故移出动作组。
 - 控制台分两组：**我的动作**（定价 / 生态投资 / 联盟，守 ≤3）与
   **牌面与环境**（城市选址 / 象限 / 外生冲击 / 评估指标，不占动作预算，见宪章 §10.2 修订）。
-- 版面：结论前置 → 控制台 → 板块 A（我自己 · 股东回报射线 + 价值利差射线）
+- 版面：结论前置 → 控制台 → 板块 A（我自己 · 股东回报线 + 价值利差线）
         → 图一 | 图二（并排 · 打价格 vs 结生态）
         → 总裁办简报（Phase 4 占位）→ 折叠区（象限地图 / 参数恢复表 / 诚实声明）。
 
@@ -453,7 +453,7 @@ def render_console():
 
 # ══════════════════════════ 图 A 区（我自己）══════════════════════════
 def render_self(k):
-    """原 Phase 2：股东回报射线 + 价值利差射线 + 动态裁决 + 基线杜邦。返回读数包（供简报）。"""
+    """原 Phase 2：股东回报线 + 价值利差线 + 动态裁决 + 基线杜邦。返回读数包（供简报）。"""
     city, quad = k["city"], k["quad"]
     # 生态投资 → 需求侧位移（%）：原第三滑块的正式驱动通道
     demand_shift = k["eco"] / C.ECO_SLIDER_MAX * ECO_TO_DEMAND_PCT if C.ECO_SLIDER_MAX else 0.0
@@ -633,6 +633,27 @@ def render_game(k):
     col_a.markdown(f"**{_t('READOUT_TITLE_C1', '图一读数 · 象限内竞争')}**"); col_a.write(r1)
     col_a.caption(f"竞争类型：{T.COMPETITION_CN[c1['competition_type']]}（θ={C.THETA_Q[quad]}）")
     col_b.markdown(f"**{_t('READOUT_TITLE_C2', '图二读数 · 区域 / 全国竞合')}**"); col_b.write(r2)
+
+    # 图二横轴 aᵢ 的一句人话解释（常驻）——「非价格吸引力」是全站最抽象的一个量。
+    if _t("CHART2_XAXIS_NOTE", ""):
+        col_b.caption(_t("CHART2_XAXIS_NOTE", ""))
+
+    # ── 名次变动：给参照物，不只给当前值（同图上灰点线的思路）──
+    # 存在 session_state 里，与「对比上次」的中位线各存各的，互不干扰。
+    _now = (v.get("share_rank"), v.get("spread_rank"))
+    _prev = st.session_state.get("prev_ranks")
+    if _prev and _prev != _now and all(x is not None for x in _now + _prev):
+        st.markdown(f"**{_t('RANK_DELTA_TITLE', '名次变动')}**")
+        for lab, i in ((_t("RANK_LABEL_SHARE", "份额名次"), 0),
+                       (_t("RANK_LABEL_VALUE", "价值名次"), 1)):
+            d = _prev[i] - _now[i]          # 名次数字变小＝上升
+            arrow = (_t("RANK_ARROW_UP", "").format(n=d) if d > 0 else
+                     _t("RANK_ARROW_DOWN", "").format(n=-d) if d < 0 else
+                     _t("RANK_ARROW_SAME", ""))
+            st.caption(_t("RANK_DELTA_LINE", "{label}：第 {prev} 名 → 第 {now} 名{arrow}")
+                       .format(label=lab, prev=_prev[i], now=_now[i], arrow=arrow))
+    if all(x is not None for x in _now):
+        st.session_state["prev_ranks"] = _now
 
     # 排名口径：两处最常被误解 —— 以为切换评估指标会改名次、或会改首屏裁决。
     # 实际 game.py 里两个排序键写死（份额 / 价值），且不接收 scorer 参数。
