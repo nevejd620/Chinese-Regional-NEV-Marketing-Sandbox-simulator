@@ -127,7 +127,8 @@ def _inject_css():
       .kpi { background:#FFFFFF; border:1px solid #E3ECE8; border-radius:10px;
              padding:.55rem .8rem; box-shadow:0 1px 2px rgba(20,38,31,.04); }
       .kpi .l { font-size:.78rem; color:#7A8A83; }
-      .kpi .v { font-size:1.12rem; font-weight:700; line-height:1.5; }
+      .kpi .v { font-size:1.12rem; font-weight:700; line-height:1.4;
+                overflow-wrap:anywhere; }   /* 长象限名换行而非截断 */
     </style>""", unsafe_allow_html=True)
 
 
@@ -534,7 +535,15 @@ def render_self(k):
                   help=f"**β · 价格弹性**：{T.PARAM_BETA_DESC}\n\n"
                        f"**γ · {_t('PARAM_GAMMA_DESC', '成本传导刚性')}**\n\n"
                        f"两者均由 nev.db 回归恢复，非手填。")
-        m4.metric("当前象限", T.QUAD_CELL[quad]["short"], help=_t("HELP_QUAD", ""))
+        # 不用 st.metric：它的大字号数值**不换行**，9–10 字的象限短名必被截断，
+        # 且各浏览器截断策略不同（Edge 上表现为堆叠）。改用 .kpi 卡片 —— 自己的
+        # HTML、字号可控、会换行；顺带上象限色（配色规则：象限色＝你是谁）。
+        m4.markdown(
+            f'<div class="kpi"{_title_attr(_t("HELP_QUAD", ""))}>'
+            f'<div class="l">当前象限</div>'
+            f'<div class="v" style="color:{QUAD_COLOR.get(quad, PRIMARY)}">'
+            f'{T.QUAD_CELL[quad]["short"]}</div></div>',
+            unsafe_allow_html=True)
         if spr_end is not None:
             v = f"{abs(spr_end) * 100:.0f}"
             if spr_end > 0:
