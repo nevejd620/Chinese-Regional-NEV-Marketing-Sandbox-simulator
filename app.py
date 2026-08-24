@@ -630,6 +630,11 @@ def render_game(k):
     col_a.caption(f"竞争类型：{T.COMPETITION_CN[c1['competition_type']]}（θ={C.THETA_Q[quad]}）")
     col_b.markdown(f"**{_t('READOUT_TITLE_C2', '图二读数 · 区域 / 全国竞合')}**"); col_b.write(r2)
 
+    # 排名口径：两处最常被误解 —— 以为切换评估指标会改名次、或会改首屏裁决。
+    # 实际 game.py 里两个排序键写死（份额 / 价值），且不接收 scorer 参数。
+    if _t("RANK_BASIS_NOTE", ""):
+        st.caption(_t("RANK_BASIS_NOTE", ""))
+
     return dict(verdict=v, share=you1["share"], spread_game=you1["spread"],
                 a_value=you2["a_value"], in_alliance=you2["in_alliance"],
                 competition_type=c1["competition_type"],
