@@ -803,17 +803,6 @@ def render_quadrant_map(highlight=None, compact=False, show_play=True):
                 st.markdown(f"- **θ**：{T.PARAM_THETA_DESC}")
 
 
-    if not compact:
-        st.caption(T.QUAD_MAP_NOTE)
-        if T.PARAM_BETA_DESC or T.PARAM_THETA_DESC:
-            st.divider()
-            st.markdown(f"**{T.PARAM_READ_TITLE}**")
-            if T.PARAM_BETA_DESC:
-                st.markdown(f"- **β**：{T.PARAM_BETA_DESC}")
-            if T.PARAM_THETA_DESC:
-                st.markdown(f"- **θ**：{T.PARAM_THETA_DESC}")
-
-
 # ══════════════════════════ 折叠区 ══════════════════════════
 def render_appendix(quad):
     with st.expander(T.QUAD_MAP_TITLE, expanded=False):
