@@ -768,7 +768,7 @@ def render_quadrant_map(highlight=None, compact=False, show_play=True):
     窄屏保持 2×2，被隐藏的详情由下方 expander 兜住。
     """
     AX = getattr(T, "QUAD_AXIS", {
-        "y_title": "纵轴 · 价格层级", "y_top": "高端市场", "y_bot": "中低端大众市场",
+        "y_title": "纵轴 · 价格层级", "y_top": "高端市场", "y_bot": "大众市场",
         "x_title": "横轴 · 动力路线", "x_left": "纯电",
         "x_right": "多路线（混动 / 增程）"})
     if not compact:
