@@ -74,18 +74,15 @@ def build_readout(cfg, city, quad, price, eco, ally, shock, ruler):
         last = sl["spread"][-1]
         spread_end = None if last != last else float(last)      # NaN → None
 
-    dupont = {}
+    # 动态杜邦（Phase 5）：与 app.py 走**同一个** financials.dupont_from_engine。
+    # 改前此处独立调 compute_value_metrics 算基线值 → 简报是静态、界面是动态，
+    # 两个真相源、数字对不上。恒等式失败正是由此暴露的。
     b = cfg["baseline"][city]
-    if all(k in b for k in ("total_revenue", "total_assets")):
-        dm = financials.compute_value_metrics(
-            operating_income=b["ebit_base"], net_income=b["net_income"],
-            total_revenue=b["total_revenue"], total_assets=b["total_assets"],
-            shareholders_equity=b["equity"],
-            interest_bearing_debt=b["interest_bearing_debt"],
-            cash_and_equivalents=b["cash_and_equivalents"],
-            quadrant=quad, tax_rate=b["tax_rate"])
-        dupont = {k: dm[k] for k in
-                  ("net_margin", "asset_turnover", "equity_multiplier")}
+    dupont = financials.dupont_from_engine(
+        roe_rr=res["roe_p50"][-1],
+        rev_rr=(res.get("rev_p50") or [None])[-1],
+        total_assets=res.get("total_assets") or b.get("total_assets"),
+        shareholders_equity=b.get("equity")) or {}
 
     # ── B 段：game ──
     p0 = game.build_user_firm(city, quad)["p0"]

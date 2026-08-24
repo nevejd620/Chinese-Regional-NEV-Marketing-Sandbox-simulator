@@ -174,3 +174,23 @@ if __name__ == "__main__":
         print(tbl.round(4).to_string(index=False))
     else:
         print("nev.db 不在当前目录；请在 repo 根目录运行，或跑 smoke_test_financials.py 验证算法。")
+
+
+def dupont_from_engine(roe_rr, rev_rr, total_assets, shareholders_equity):
+    """由引擎的 ROE 与营收 run-rate 反解杜邦三因子（Phase 5 · 动态杜邦）。
+
+    **单一实现**：app.py 与 make_cache.py 都调这里，避免第二个真相源
+    （曾各算各的：app 动态、make_cache 静态基线，简报与界面对不上）。
+
+    恒等式对**动态** ROE 精确成立，因为营收与总资产前后消掉：
+        (利润/营收) · (营收/资产) · (资产/权益) = 利润/权益 = roe_rr
+    故这是代数恒等，不是拟合。
+
+    参数均为标量（取末期值）。营收或权益为 0 → 返回 None（调用方跳过该块）。
+    """
+    if not rev_rr or not shareholders_equity or not total_assets:
+        return None
+    profit_rr = roe_rr * shareholders_equity
+    return dict(net_margin=profit_rr / rev_rr,
+                asset_turnover=rev_rr / total_assets,
+                equity_multiplier=total_assets / shareholders_equity)

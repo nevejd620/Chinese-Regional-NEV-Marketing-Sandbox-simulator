@@ -576,14 +576,10 @@ def render_self(k):
     _assets = res.get("total_assets") or bb.get("total_assets")
     if _rev and _assets and bb.get("equity"):
         def _dupont_at(roe_series, rev_series):
-            """由 ROE 与营收 run-rate 反解三项。返回 None 表示该期营收为 0。"""
-            rev = rev_series[-1]
-            if not rev:
-                return None
-            profit_rr = roe_series[-1] * bb["equity"]        # 利润 run-rate
-            return dict(net_margin=profit_rr / rev,
-                        asset_turnover=rev / _assets,
-                        equity_multiplier=_assets / bb["equity"])
+            """由 ROE 与营收 run-rate 反解三项 —— 共享实现，见 financials。"""
+            return financials.dupont_from_engine(
+                roe_rr=roe_series[-1], rev_rr=rev_series[-1],
+                total_assets=_assets, shareholders_equity=bb["equity"])
 
         dm = _dupont_at(res["roe_p50"], _rev)
         if dm:
