@@ -519,7 +519,8 @@ def render_self(k):
         st.caption(T.SHADE_NOTE)
 
     if has_ebit:
-        st.session_state[skey] = dict(roe=res["roe_p50"], spr=spr_p50)
+        st.session_state[skey] = dict(roe=res["roe_p50"], spr=spr_p50,
+                                      rev=res.get("rev_p50"))
 
     roe_end = res["roe_p50"][-1]
     spr_end = spr_p50[-1] if has_ebit else None
@@ -529,6 +530,14 @@ def render_self(k):
                   help=T.tip("roe"))
         m2.metric(T.label("spread"), (f"{spr_end:+.1%}" if spr_end is not None else "—"),
                   help=T.tip("spread"))
+        # 「上一轮」参照：复用第 481 行已取到的 prev（按城市分键，切城市自动失效），
+        # 其曲线末位就是上一轮的读数 —— 不新增任何 session_state。
+        # 首次进入无 prev → 不显示；从初始状态拨第一下时，prev 正是初始状态的读数。
+        _tag = _t("PREV_ROUND_TAG", "上一轮：{v}")
+        if prev and prev.get("roe") is not None:
+            m1.caption(_tag.format(v=f"{prev['roe'][-1]:+.1%}"))
+        if prev and prev.get("spr") is not None:
+            m2.caption(_tag.format(v=f"{prev['spr'][-1]:+.1%}"))
         # β/γ 是恢复出来的系数，光给数值没有意义 → 悬浮里给人话解释
         m3.metric("价格弹性 β / 成本传导 γ",
                   f"{res['beta_used']:.2f} / {res['gamma_used']:.2f}",
@@ -555,27 +564,53 @@ def render_self(k):
         else:
             st.warning(T.VERDICT_NA)
 
-    # 基线杜邦（t0 结构解剖，静态）
+    # ── 动态杜邦（Phase 5）────────────────────────────────────────────
+    # 改前取 t0 基线（静态）：上方 ROE 是拨动后的动态值，下方三项却是基线值，
+    # 中间还摆着恒等式 → 读者一乘就发现对不上。那是页面自相矛盾，不是精度问题。
+    # 现按引擎的逐日营收/利润实时重算，恒等式对**动态** ROE 精确成立：
+    #   (利润/营收)·(营收/资产)·(资产/权益) = 利润/权益 = roe_p50   ← 营收与资产消掉
+    # 用同一条 p50 营收作共同分母，故这是代数恒等，不是拟合。
     dupont = {}
     bb = config["baseline"][city]
-    if all(key in bb for key in ("total_revenue", "total_assets")):
-        dm = financials.compute_value_metrics(
-            operating_income=bb["ebit_base"], net_income=bb["net_income"],
-            total_revenue=bb["total_revenue"], total_assets=bb["total_assets"],
-            shareholders_equity=bb["equity"], interest_bearing_debt=bb["interest_bearing_debt"],
-            cash_and_equivalents=bb["cash_and_equivalents"], quadrant=quad,
-            tax_rate=bb["tax_rate"])
-        if T.DUPONT_FORMULA:
-            # 与下方三个指标同级：这是本段的分解式，不是脚注
-            st.markdown(f"**{T.DUPONT_FORMULA}**")
-        d1, d2, d3 = st.columns(3)
-        d1.metric(T.label("net_margin"), f"{dm['net_margin']:+.1%}", help=T.tip("net_margin"))
-        d2.metric(T.label("asset_turnover"), f"{dm['asset_turnover']:.2f}",
-                  help=T.tip("asset_turnover"))
-        d3.metric(T.label("equity_multiplier"), f"{dm['equity_multiplier']:.2f}",
-                  help=T.tip("equity_multiplier"))
-        dupont = {kk: dm[kk] for kk in
-                  ("net_margin", "asset_turnover", "equity_multiplier")}
+    _rev = res.get("rev_p50")
+    _assets = res.get("total_assets") or bb.get("total_assets")
+    if _rev and _assets and bb.get("equity"):
+        def _dupont_at(roe_series, rev_series):
+            """由 ROE 与营收 run-rate 反解三项。返回 None 表示该期营收为 0。"""
+            rev = rev_series[-1]
+            if not rev:
+                return None
+            profit_rr = roe_series[-1] * bb["equity"]        # 利润 run-rate
+            return dict(net_margin=profit_rr / rev,
+                        asset_turnover=rev / _assets,
+                        equity_multiplier=_assets / bb["equity"])
+
+        dm = _dupont_at(res["roe_p50"], _rev)
+        if dm:
+            if T.DUPONT_FORMULA:
+                # 与下方三个指标同级：这是本段的分解式，不是脚注
+                st.markdown(f"**{T.DUPONT_FORMULA}**")
+            if _t("DUPONT_DYNAMIC_NOTE", ""):
+                st.caption(_t("DUPONT_DYNAMIC_NOTE", ""))
+
+            pm = None
+            if prev and prev.get("rev") and prev.get("roe"):
+                pm = _dupont_at(prev["roe"], prev["rev"])
+
+            d1, d2, d3 = st.columns(3)
+            d1.metric(T.label("net_margin"), f"{dm['net_margin']:+.1%}",
+                      help=T.tip("net_margin"))
+            d2.metric(T.label("asset_turnover"), f"{dm['asset_turnover']:.2f}",
+                      help=T.tip("asset_turnover"))
+            d3.metric(T.label("equity_multiplier"), f"{dm['equity_multiplier']:.2f}",
+                      help=f"{T.tip('equity_multiplier')}\n\n"
+                           f"{_t('DUPONT_EM_STATIC', '')}")
+            _ptag = _t("PREV_ROUND_TAG", "上一轮：{v}")
+            if pm:
+                d1.caption(_ptag.format(v=f"{pm['net_margin']:+.1%}"))
+                d2.caption(_ptag.format(v=f"{pm['asset_turnover']:.2f}"))
+                d3.caption(_ptag.format(v=f"{pm['equity_multiplier']:.2f}"))
+            dupont = dm
 
     return dict(roe_end=roe_end, spread_end=spr_end, has_ebit=has_ebit,
                 beta_used=res["beta_used"], gamma_used=res["gamma_used"],

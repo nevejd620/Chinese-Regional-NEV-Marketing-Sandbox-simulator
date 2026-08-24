@@ -101,6 +101,13 @@ def simulate_roe(city: str, sliders: dict, config: dict,
 
     p05, p50, p95 = np.percentile(roe_rr, [5, 50, 95], axis=0)
 
+    # Phase 5: annualised revenue run-rate (p50 only) so app.py can build a **dynamic**
+    # DuPont decomposition. Using the p50 revenue as the shared denominator makes the
+    # identity hold EXACTLY against the displayed ROE:
+    #   (profit_rr/rev_rr) · (rev_rr/assets) · (assets/equity) = profit_rr/equity = roe_p50
+    # rev and assets cancel algebraically — it is an identity, not a fit.
+    rev_p50 = np.percentile(revenue * 365.0, 50, axis=0)
+
     def _breakdown(idx):
         return dict(price=float(price),
                     qty_annual=float(np.median(qty_daily[:, idx]) * 365),
@@ -120,6 +127,8 @@ def simulate_roe(city: str, sliders: dict, config: dict,
                 interest_bearing_debt=b.get("interest_bearing_debt"),
                 cash_and_equivalents=b.get("cash_and_equivalents"),
                 shareholders_equity=equity, tax_rate=b.get("tax_rate"),
+                # Phase 5 · 动态杜邦所需
+                rev_p50=rev_p50.tolist(), total_assets=b.get("total_assets"),
                 breakdown_t0=_breakdown(0), breakdown_tH=_breakdown(horizon - 1),
                 beta_used=float(beta_c["value"]), gamma_used=float(gamma_c["value"]))
 
