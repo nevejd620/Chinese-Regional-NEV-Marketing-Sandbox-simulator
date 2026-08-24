@@ -480,6 +480,8 @@ def render_self(k):
     prev = st.session_state.get(skey)
 
     _section("A", _t("SEC_A_TITLE", "A · 你自己"), _t("SEC_A_SUB", ""))
+    if _is_initial(k):                       # 初始态：这些读数描述牌面，不是你的战果
+        st.caption(_t("BASELINE_TAG_A", ""))
     st.caption(_t("SEC_A_BASE_NOTE", "基准股东回报率：`{v}`").format(
         v=f"{config['baseline'][city]['roe_base']:+.1%}"))
 
@@ -626,6 +628,8 @@ def render_game(k):
     r2 = T.READOUT_C2.format(a=you2["a_value"], spread=T.fmt_pct(you2.get(scorer)),
                              ally=(T.READOUT_ALLY if k["ally"] else ""))
     col_a, col_b = st.columns(2)
+    if _is_initial(k):
+        st.caption(_t("BASELINE_TAG_B", ""))
     col_a.markdown(f"**{_t('READOUT_TITLE_C1', '图一读数 · 象限内竞争')}**"); col_a.write(r1)
     col_a.caption(f"竞争类型：{T.COMPETITION_CN[c1['competition_type']]}（θ={C.THETA_Q[quad]}）")
     col_b.markdown(f"**{_t('READOUT_TITLE_C2', '图二读数 · 区域 / 全国竞合')}**"); col_b.write(r2)
