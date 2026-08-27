@@ -4,7 +4,7 @@
 >
 > 一个可以拨动的定价沙盘：选一座城市、挑一种战略，然后打一场价格战——看着自己冲上销量第一，同时把价值输光。
 
-**🔗 [在线试玩](https://chinese-regional-nev-marketing-sandbox-simulator-3lpxhv6sebdda.streamlit.app/)**（免费部署，12 小时无访问会休眠，首次打开需等约 30 秒唤醒）
+**🔗 [在线试玩](https://chinese-regional-nev-marketing-sandbox-simulator-3lpxhv6sebdda.streamlit.app/)**（免费部署，长时间无访问会休眠；若看到「Your app is in the oven」，等它醒来即可，通常半分钟内）
 
 <details>
 <summary><b>English summary</b> (UI is in Chinese)</summary>
@@ -32,7 +32,7 @@ briefing where **financial figures never enter the prompt** — numbers travel a
 pre-formatted strings into template slots, text comes from retrieval, and the two only
 meet at the render layer.
 
-**Stack**: Python · Streamlit · statsmodels · Plotly · NumPy/pandas · SQLite
+**Stack**: Python · Streamlit · Plotly · NumPy/pandas · SQLite · statsmodels (offline calibration only)
 
 **Note**: the interface, the verdict copy, and the generated briefings are all in Chinese.
 The five-step walkthrough below is the fastest way in even without reading Chinese —
@@ -98,7 +98,7 @@ flowchart LR
 | 层 | 内容 | 关键点 |
 |---|---|---|
 | **数值层** | `nev.db`（6 张表） | 由 `generate_data.py` 的 DGP 合成，β/γ 埋在其中 |
-| **系数层** | `calibration.py` → `simulation_config.json` | 回归恢复 β/γ，附标准误供蒙特卡洛抽样 |
+| **系数层** | `calibration.py` → `simulation_config.json` · `recovery_table.json` | 回归恢复 β/γ，附标准误供蒙特卡洛抽样；两个产物**离线算好随仓库走**，运行期只读盘 |
 | **模型层** | `simulate.py` · `financials.py` · `game.py` | 离线标定 + 在线推演 + 博弈引擎 |
 | **文案层** | `copy_cn.py` | 独立于计算，改它热重载、不重跑 |
 
@@ -115,11 +115,20 @@ git clone https://github.com/nevejd620/Chinese-Regional-NEV-Marketing-Sandbox-si
 cd Chinese-Regional-NEV-Marketing-Sandbox-simulator
 pip install -r requirements.txt
 
-python calibration.py     # 参数恢复 → 生成 simulation_config.json
-streamlit run app.py      # 启动沙盘
+streamlit run app.py      # 直接起沙盘：标定产物已随仓库走，不必先跑回归
 ```
 
-Python 3.11。运行期**不依赖任何向量栈**（无 sentence-transformers / faiss / chromadb）——检索向量在构建期离线算好随仓库走。
+Python 3.11。运行期**不依赖任何向量栈**（无 sentence-transformers / faiss / chromadb）——检索向量在构建期离线算好随仓库走。同理，**标定也不在运行期发生**：`simulation_config.json` 与 `recovery_table.json` 是 `calibration.py` 的离线产物，已提交进仓库，应用只读盘。因此运行期也不需要 `statsmodels` / `scipy`——它们只在下面这份 dev 依赖里。
+
+想自己复跑参数恢复（或改了 `config.py` 的真值、重跑了 Phase 0）时：
+
+```bash
+pip install -r requirements-dev.txt   # = requirements.txt + statsmodels + scipy
+python calibration.py                 # 重新生成两个 JSON，控制台打印恢复表
+git add -f simulation_config.json recovery_table.json
+```
+
+两个 JSON 在 `.gitignore` 里，所以要 `-f`；和 `nev.db` 同性质——生成产物，但必须随仓库走。**改了真值或重跑数据地基之后忘了重新提交，线上用的就是旧系数。**
 
 商业分析简报需要自备 API Key，在界面内填入即可（存在会话内存，不落盘、不进仓库）。不填也能用，界面会退回预生成的缓存简报。
 
@@ -127,7 +136,7 @@ Python 3.11。运行期**不依赖任何向量栈**（无 sentence-transformers 
 
 ```
 app.py               两 tab 界面（象限地图 / 沙盘）
-├─ calibration.py    回归恢复 β/γ → simulation_config.json
+├─ calibration.py    回归恢复 β/γ → simulation_config.json + recovery_table.json
 ├─ simulate.py       180 天确定性引擎 + 蒙特卡洛置信带
 ├─ financials.py     杜邦 → ROIC → WACC → 价值利差
 ├─ game.py           Logit 份额 + 最优反应 + 生态/联盟慢层
@@ -141,6 +150,9 @@ app.py               两 tab 界面（象限地图 / 沙盘）
 ├─ ensure_db.py      部署自举：nev.db 缺失或不可用时重建
 ├─ corpus/           检索语料 + 离线算好的向量
 └─ cache/            预生成的简报缓存
+
+离线产物（生成的，但都随仓库走）
+   nev.db · simulation_config.json · recovery_table.json · corpus/vecs.npz
 ```
 
 ---
