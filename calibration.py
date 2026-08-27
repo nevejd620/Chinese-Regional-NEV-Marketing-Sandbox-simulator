@@ -186,13 +186,15 @@ def build_config(db: Path = DB_PATH, truth_path: Path = TRUTH_PATH,
 
 # optional Streamlit cache wrapper (import-safe: no hard dependency at import time)
 def cached_config():
-    try:
-        import streamlit as st
-        return st.cache_data(build_config)()
-    except Exception:
+    def _load():
         if CFG_PATH.exists():
             return json.load(open(CFG_PATH, encoding="utf-8"))
         return build_config()
+    try:
+        import streamlit as st
+        return st.cache_data(_load)()
+    except Exception:
+        return _load()
 
 
 if __name__ == "__main__":
