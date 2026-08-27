@@ -1,0 +1,163 @@
+{
+  "meta": {
+    "source": "calibration.py",
+    "note": "coefficients recovered from nev.db"
+  },
+  "coefficients": {
+    "beta_demand": {
+      "Q1": {
+        "value": -1.2844,
+        "std_err": 0.0092
+      },
+      "Q2": {
+        "value": -1.1036,
+        "std_err": 0.0093
+      },
+      "Q3": {
+        "value": -1.8219,
+        "std_err": 0.012
+      },
+      "Q4": {
+        "value": -2.3919,
+        "std_err": 0.0124
+      }
+    },
+    "gamma_cost": {
+      "Changzhou": {
+        "value": 0.3429,
+        "std_err": 0.0265
+      },
+      "Hefei": {
+        "value": 0.4145,
+        "std_err": 0.0342
+      },
+      "Liuzhou": {
+        "value": 0.3307,
+        "std_err": 0.0283
+      },
+      "Shanghai": {
+        "value": 0.5657,
+        "std_err": 0.0259
+      },
+      "Shenzhen": {
+        "value": 0.3586,
+        "std_err": 0.0306
+      },
+      "Xian": {
+        "value": 0.5513,
+        "std_err": 0.0316
+      }
+    },
+    "theta_q": {
+      "Q1": 0.4,
+      "Q2": 0.4,
+      "Q3": 0.25,
+      "Q4": 0.1
+    }
+  },
+  "regions": {},
+  "baseline": {
+    "Liuzhou": {
+      "quadrant": "Q3",
+      "asp": 135779.93118296508,
+      "unit_cost": 96493.0,
+      "base_qty": 6445.334412644007,
+      "fixed_cost": 223162998.5207418,
+      "equity": 352160223.0,
+      "revenue": 875147063.0,
+      "net_income": 30054411.0,
+      "roe_base": 0.08534300309095386,
+      "ebit_base": 45475206.0,
+      "interest_bearing_debt": 169584346.0,
+      "cash_and_equivalents": 263786578.0,
+      "tax_rate": 0.2,
+      "total_revenue": 993085848.0,
+      "total_assets": 1049268389.0
+    },
+    "Shanghai": {
+      "quadrant": "Q1",
+      "asp": 180536.58184438042,
+      "unit_cost": 127774.0,
+      "base_qty": 2305.6240499712144,
+      "fixed_cost": 191883314.63897806,
+      "equity": 165836387.0,
+      "revenue": 416249485.0,
+      "net_income": -70232637.0,
+      "roe_base": -0.4235055904829861,
+      "ebit_base": -77451386.0,
+      "interest_bearing_debt": 221747753.0,
+      "cash_and_equivalents": 201192375.0,
+      "tax_rate": 0.2,
+      "total_revenue": 459946613.0,
+      "total_assets": 597108287.0
+    },
+    "Hefei": {
+      "quadrant": "Q1",
+      "asp": 171283.0067236053,
+      "unit_cost": 128802.0,
+      "base_qty": 2281.314331611093,
+      "fixed_cost": 156808994.45982796,
+      "equity": 143207008.0,
+      "revenue": 390750378.0,
+      "net_income": -59896465.0,
+      "roe_base": -0.4182509350380395,
+      "ebit_base": -64932241.0,
+      "interest_bearing_debt": 213146080.0,
+      "cash_and_equivalents": 139867657.0,
+      "tax_rate": 0.2,
+      "total_revenue": 431767552.0,
+      "total_assets": 546112564.0
+    },
+    "Changzhou": {
+      "quadrant": "Q2",
+      "asp": 327565.12394817686,
+      "unit_cost": 196854.0,
+      "base_qty": 1864.1947306228133,
+      "fixed_cost": 266463894.49797672,
+      "equity": 216791628.0,
+      "revenue": 610645178.0,
+      "net_income": -22792906.0,
+      "roe_base": -0.10513739026859469,
+      "ebit_base": -26548564.0,
+      "interest_bearing_debt": 41661977.0,
+      "cash_and_equivalents": 207186554.0,
+      "tax_rate": 0.2,
+      "total_revenue": 665004447.0,
+      "total_assets": 758435357.0
+    },
+    "Shenzhen": {
+      "quadrant": "Q2",
+      "asp": 328868.330215571,
+      "unit_cost": 196941.0,
+      "base_qty": 1857.4406802856015,
+      "fixed_cost": 286153438.98387337,
+      "equity": 239953909.0,
+      "revenue": 610853415.0,
+      "net_income": -41106249.0,
+      "roe_base": -0.17130893666749974,
+      "ebit_base": -47858088.0,
+      "interest_bearing_debt": 75594204.0,
+      "cash_and_equivalents": 107375054.0,
+      "tax_rate": 0.2,
+      "total_revenue": 646243675.0,
+      "total_assets": 818280448.0
+    },
+    "Xian": {
+      "quadrant": "Q4",
+      "asp": 52675.78730183291,
+      "unit_cost": 40796.0,
+      "base_qty": 12523.049199438285,
+      "fixed_cost": 144214886.85971576,
+      "equity": 173854612.0,
+      "revenue": 659661476.0,
+      "net_income": 4556274.0,
+      "roe_base": 0.026207380681968907,
+      "ebit_base": 10820724.0,
+      "interest_bearing_debt": 109923293.0,
+      "cash_and_equivalents": 102587414.0,
+      "tax_rate": 0.2,
+      "total_revenue": 708365449.0,
+      "total_assets": 516704767.0
+    }
+  }
+}
