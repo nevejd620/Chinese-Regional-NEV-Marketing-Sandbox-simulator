@@ -21,12 +21,18 @@ import json, sqlite3
 from pathlib import Path
 import numpy as np
 import pandas as pd
-import statsmodels.formula.api as smf
+
+# statsmodels 只在「现算」路径用得到（recover_beta / recover_gamma）。
+# 放成惰性导入，运行期读盘就不必安装它 —— 见 requirements.txt 的分层说明。
+def _smf():
+    import statsmodels.formula.api as smf
+    return smf
 
 ROOT       = Path(__file__).resolve().parent
 DB_PATH    = ROOT / "nev.db"
 TRUTH_PATH = ROOT / "ground_truth.json"
 CFG_PATH   = ROOT / "simulation_config.json"
+REC_PATH   = ROOT / "recovery_table.json"   # 离线产物：随仓库走，运行期只读
 
 
 # ── data access ─────────────────────────────────────────────────────────
@@ -51,7 +57,7 @@ def recover_beta(db: Path = DB_PATH) -> pd.DataFrame:
     for q, g in df.groupby("quadrant"):
         # need >1 model for FE; fall back to plain OLS if only one
         formula = "lnQ ~ lnP + C(model_id)" if g.model_id.nunique() > 1 else "lnQ ~ lnP"
-        res = smf.ols(formula, data=g).fit()
+        res = _smf().ols(formula, data=g).fit()
         ci = res.conf_int().loc["lnP"]
         out.append(dict(coefficient="beta_demand", key=q,
                         estimate=res.params["lnP"], ci_low=ci[0], ci_high=ci[1],
@@ -94,7 +100,7 @@ def recover_gamma(db: Path = DB_PATH) -> pd.DataFrame:
     out = []
     for r, g in df.groupby("region"):
         g = g.assign(Lr=g.lithium_price_index / 100)
-        res = smf.ols("bom_cost_per_unit ~ Lr", data=g).fit()
+        res = _smf().ols("bom_cost_per_unit ~ Lr", data=g).fit()
         b0, b1 = res.params["Intercept"], res.params["Lr"]
         base = b0 + b1
         gamma = b1 / base
@@ -181,20 +187,54 @@ def build_config(db: Path = DB_PATH, truth_path: Path = TRUTH_PATH,
         "baseline": _baseline_pack(db),
     }
     json.dump(config, open(out, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    # 恢复表同为离线产物：一起落盘，运行期只读，不再触发回归
+    _dump_recovery(tab)
     return config
 
 
-# optional Streamlit cache wrapper (import-safe: no hard dependency at import time)
+# ── 恢复表落盘 / 读盘 ────────────────────────────────────────────────────
+def _dump_recovery(tab: pd.DataFrame, out: Path = REC_PATH) -> None:
+    """把恢复表写成 JSON。NaN → null，bool 原样，读回来完全等价。"""
+    recs = json.loads(tab.to_json(orient="records", force_ascii=False))
+    json.dump(recs, open(out, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+
+
+def _read_recovery(path: Path = REC_PATH) -> pd.DataFrame:
+    recs = json.load(open(path, encoding="utf-8"))
+    tab = pd.DataFrame(recs)
+    tab["covered"] = tab["covered"].astype(bool)
+    return tab
+
+
+# ── 运行期入口：有离线产物就读盘，没有才现算 ─────────────────────────────
+# 读盘路径不 import statsmodels，因此线上可以不装 statsmodels / scipy。
+def _load_config() -> dict:
+    if CFG_PATH.exists():
+        return json.load(open(CFG_PATH, encoding="utf-8"))
+    return build_config()
+
+
+def _load_recovery() -> pd.DataFrame:
+    if REC_PATH.exists():
+        return _read_recovery()
+    return recovery_table()
+
+
 def cached_config():
-    def _load():
-        if CFG_PATH.exists():
-            return json.load(open(CFG_PATH, encoding="utf-8"))
-        return build_config()
+    """Streamlit 环境下额外套一层进程内缓存；无 streamlit 时直接读盘。"""
     try:
         import streamlit as st
-        return st.cache_data(_load)()
+        return st.cache_data(_load_config)()
     except Exception:
-        return _load()
+        return _load_config()
+
+
+def cached_recovery_table():
+    try:
+        import streamlit as st
+        return st.cache_data(_load_recovery)()
+    except Exception:
+        return _load_recovery()
 
 
 if __name__ == "__main__":
@@ -205,6 +245,7 @@ if __name__ == "__main__":
     ok = tab.covered.mean()
     print(f"\nCI covers truth: {tab.covered.sum()}/{len(tab)}  ({ok:.0%})")
     cfg = build_config()
+    print(f"✓ wrote {REC_PATH.name}  ({len(tab)} rows)")
     print(f"✓ wrote {CFG_PATH.name}  ({len(cfg['baseline'])} regions, "
           f"{len(cfg['coefficients']['beta_demand'])} β, "
           f"{len(cfg['coefficients']['gamma_cost'])} γ)")

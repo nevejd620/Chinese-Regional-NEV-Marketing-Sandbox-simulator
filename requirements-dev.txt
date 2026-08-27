@@ -1,0 +1,6 @@
+# NEV 沙盘 · 离线标定依赖（本地 / Colab 才需要）
+# 用途：跑 python calibration.py，产出 simulation_config.json 与 recovery_table.json，
+#       两个产物 git add -f 提交进仓库，线上只读盘、不重跑回归。
+-r requirements.txt
+statsmodels          # OLS 恢复 β / γ
+scipy                # delta method 的协方差传播

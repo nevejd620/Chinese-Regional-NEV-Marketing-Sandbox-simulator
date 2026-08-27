@@ -16,7 +16,7 @@ Phase 4 归并版：原「Phase 2 财务解剖」与「Phase 3 定价博弈」�
   落实宪章 §5 唯一红线（基座只认通用名）。它是**外生环境**、不是你的动作，故移出动作组。
 - 控制台分两组：**我的动作**（定价 / 生态投资 / 联盟，守 ≤3）与
   **牌面与环境**（城市选址 / 象限 / 外生冲击 / 评估指标，不占动作预算，见宪章 §10.2 修订）。
-- 版面：结论前置 → 控制台 → 板块 A（我自己 · 股东回报线 + 价值利差线）
+- 版面：结论前置 → 控制台 → 板块 A（我自己 · 股东回报射线 + 价值利差射线）
         → 图一 | 图二（并排 · 打价格 vs 结生态）
         → 总裁办简报（Phase 4 占位）→ 折叠区（象限地图 / 参数恢复表 / 诚实声明）。
 
@@ -31,7 +31,7 @@ import streamlit as st
 
 import ensure_db as _edb          # 整模块导入：IS_FALLBACK 由 ensure_db() 运行时写入，
                                   # `from ... import IS_FALLBACK` 会把 False 绑死
-from calibration import recovery_table, cached_config
+from calibration import cached_recovery_table, cached_config
 from simulate import simulate_roe
 import financials
 import game
@@ -62,10 +62,7 @@ PRIMARY = SECTION_COLOR.get("A", "#12A47A")
 PANEL_LINE = getattr(T, "PANEL_LINE", "#0A6E4C")  # 两个面板顶线统一墨绿
 
 # Plotly 统一底纹：透明底 + 浅描边，嵌进白卡片里不突兀
-# 背景给白，不用全透明：透明在页面上看着一样（页底本就近白），
-# 但用 Plotly 的相机按钮导出 PNG 时会得到透明底 —— 贴进深色幻灯片或
-# 社媒预览里，文字与坐标轴会整片消失。
-PLOT_LAYOUT = dict(paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF",
+PLOT_LAYOUT = dict(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                    font=dict(color="#14261F", size=12),
                    xaxis=dict(gridcolor="#E7EFEB", zerolinecolor="#DCE7E2"),
                    yaxis=dict(gridcolor="#E7EFEB", zerolinecolor="#DCE7E2"))
@@ -127,8 +124,7 @@ def _inject_css():
       .kpi { background:#FFFFFF; border:1px solid #E3ECE8; border-radius:10px;
              padding:.55rem .8rem; box-shadow:0 1px 2px rgba(20,38,31,.04); }
       .kpi .l { font-size:.78rem; color:#7A8A83; }
-      .kpi .v { font-size:1.12rem; font-weight:700; line-height:1.4;
-                overflow-wrap:anywhere; }   /* 长象限名换行而非截断 */
+      .kpi .v { font-size:1.12rem; font-weight:700; line-height:1.5; }
     </style>""", unsafe_allow_html=True)
 
 
@@ -196,27 +192,23 @@ def _index_of(options, value, fallback=0):
 def _panel(days, p05, p50, p95, prev_p50, color, rgba, y_title,
            zero_ref, zero_label, base_ref, base_label,
            this_label, prev_label):
-    """一个分区面板：p5–p95 置信带 + 中位线 +（有上次则）上次的点线 + 参考线。
-
-    阴影只用于置信带一件事；「对比上次」用线不用面，避免两片同色阴影混淆。
-    文案全走 copy_cn。
-    """
+    """一个分区面板：p5–p95 带 + 中位线 +（有上次则）对比阴影 + 参考线。文案全走 copy_cn。"""
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=days, y=p95, mode="lines", line=dict(width=0),
                              showlegend=False, hoverinfo="skip"))
     fig.add_trace(go.Scatter(x=days, y=p05, mode="lines", line=dict(width=0),
-                             fill="tonexty", fillcolor=rgba.replace("A%", "0.17"),
+                             fill="tonexty", fillcolor=rgba.replace("A%", "0.13"),
                              name="p5–p95 置信带"))
-    # 「对比上次」曾在中位线与上次线之间再填一层同色阴影（0.22）。已移除：
-    # 与 p5–p95 置信带同色系、仅差透明度，且被夹在中间又窄，两片阴影视觉上
-    # 分不开 —— 反而让人以为置信带不存在。现在【一片阴影只有一个含义】＝置信带；
-    # 「对比上次」由灰点线单独承担，仍是定性/方向性表述（Phase 2 P2.9 不变）。
     if prev_p50 is not None:
         fig.add_trace(go.Scatter(x=days, y=prev_p50, mode="lines",
                                  line=dict(color="#B6C3BD", width=1.4, dash="dot"),
                                  name=prev_label))
-    fig.add_trace(go.Scatter(x=days, y=p50, mode="lines",
-                             line=dict(color=color, width=2.6), name=this_label))
+        fig.add_trace(go.Scatter(x=days, y=p50, mode="lines", fill="tonexty",
+                                 fillcolor=rgba.replace("A%", "0.22"),
+                                 line=dict(color=color, width=2.6), name=this_label))
+    else:
+        fig.add_trace(go.Scatter(x=days, y=p50, mode="lines",
+                                 line=dict(color=color, width=2.6), name=this_label))
     if zero_ref:
         # 标注放右侧：图例在左上角，零线贴顶时（价值利差图数值全为负）
         # 若标注也在 top left，两者必然重叠。
@@ -454,7 +446,7 @@ def render_console():
 
 # ══════════════════════════ 图 A 区（我自己）══════════════════════════
 def render_self(k):
-    """原 Phase 2：股东回报线 + 价值利差线 + 动态裁决 + 基线杜邦。返回读数包（供简报）。"""
+    """原 Phase 2：股东回报射线 + 价值利差射线 + 动态裁决 + 基线杜邦。返回读数包（供简报）。"""
     city, quad = k["city"], k["quad"]
     # 生态投资 → 需求侧位移（%）：原第三滑块的正式驱动通道
     demand_shift = k["eco"] / C.ECO_SLIDER_MAX * ECO_TO_DEMAND_PCT if C.ECO_SLIDER_MAX else 0.0
@@ -481,8 +473,6 @@ def render_self(k):
     prev = st.session_state.get(skey)
 
     _section("A", _t("SEC_A_TITLE", "A · 你自己"), _t("SEC_A_SUB", ""))
-    if _is_initial(k):                       # 初始态：这些读数描述牌面，不是你的战果
-        st.caption(_t("BASELINE_TAG_A", ""))
     st.caption(_t("SEC_A_BASE_NOTE", "基准股东回报率：`{v}`").format(
         v=f"{config['baseline'][city]['roe_base']:+.1%}"))
 
@@ -519,8 +509,7 @@ def render_self(k):
         st.caption(T.SHADE_NOTE)
 
     if has_ebit:
-        st.session_state[skey] = dict(roe=res["roe_p50"], spr=spr_p50,
-                                      rev=res.get("rev_p50"))
+        st.session_state[skey] = dict(roe=res["roe_p50"], spr=spr_p50)
 
     roe_end = res["roe_p50"][-1]
     spr_end = spr_p50[-1] if has_ebit else None
@@ -530,32 +519,13 @@ def render_self(k):
                   help=T.tip("roe"))
         m2.metric(T.label("spread"), (f"{spr_end:+.1%}" if spr_end is not None else "—"),
                   help=T.tip("spread"))
-        # 「上一轮」参照：复用第 481 行已取到的 prev（按城市分键，切城市自动失效），
-        # 其曲线末位就是上一轮的读数 —— 不新增任何 session_state。
-        # 首次进入无 prev → 不显示；从初始状态拨第一下时，prev 正是初始状态的读数。
-        _tag = _t("PREV_ROUND_TAG", "上一轮：{v}")
-        if prev and prev.get("roe") is not None:
-            m1.caption(_tag.format(v=f"{prev['roe'][-1]:+.1%}"))
-        if prev and prev.get("spr") is not None:
-            m2.caption(_tag.format(v=f"{prev['spr'][-1]:+.1%}"))
         # β/γ 是恢复出来的系数，光给数值没有意义 → 悬浮里给人话解释
         m3.metric("价格弹性 β / 成本传导 γ",
                   f"{res['beta_used']:.2f} / {res['gamma_used']:.2f}",
-                  # γ 那行原写作 f"**γ · {描述}**" —— 把整段描述都包进了粗体，
-                  # 与上一行 β 的写法不一致（β 只加粗标题）。已对齐。
                   help=f"**β · 价格弹性**：{T.PARAM_BETA_DESC}\n\n"
-                       f"**γ · 成本传导刚性**：{_t('PARAM_GAMMA_DESC', '')}\n\n"
-                       f"两者均由 nev.db 回归恢复，非手填；"
-                       f"**都不随滑块变** —— β 换象限才变，γ 换城市才变。")
-        # 不用 st.metric：它的大字号数值**不换行**，9–10 字的象限短名必被截断，
-        # 且各浏览器截断策略不同（Edge 上表现为堆叠）。改用 .kpi 卡片 —— 自己的
-        # HTML、字号可控、会换行；顺带上象限色（配色规则：象限色＝你是谁）。
-        m4.markdown(
-            f'<div class="kpi"{_title_attr(_t("HELP_QUAD", ""))}>'
-            f'<div class="l">当前象限</div>'
-            f'<div class="v" style="color:{QUAD_COLOR.get(quad, PRIMARY)}">'
-            f'{T.QUAD_CELL[quad]["short"]}</div></div>',
-            unsafe_allow_html=True)
+                       f"**γ · {_t('PARAM_GAMMA_DESC', '成本传导刚性')}**\n\n"
+                       f"两者均由 nev.db 回归恢复，非手填。")
+        m4.metric("当前象限", T.QUAD_CELL[quad]["short"], help=_t("HELP_QUAD", ""))
         if spr_end is not None:
             v = f"{abs(spr_end) * 100:.0f}"
             if spr_end > 0:
@@ -567,49 +537,27 @@ def render_self(k):
         else:
             st.warning(T.VERDICT_NA)
 
-    # ── 动态杜邦（Phase 5）────────────────────────────────────────────
-    # 改前取 t0 基线（静态）：上方 ROE 是拨动后的动态值，下方三项却是基线值，
-    # 中间还摆着恒等式 → 读者一乘就发现对不上。那是页面自相矛盾，不是精度问题。
-    # 现按引擎的逐日营收/利润实时重算，恒等式对**动态** ROE 精确成立：
-    #   (利润/营收)·(营收/资产)·(资产/权益) = 利润/权益 = roe_p50   ← 营收与资产消掉
-    # 用同一条 p50 营收作共同分母，故这是代数恒等，不是拟合。
+    # 基线杜邦（t0 结构解剖，静态）
     dupont = {}
     bb = config["baseline"][city]
-    _rev = res.get("rev_p50")
-    _assets = res.get("total_assets") or bb.get("total_assets")
-    if _rev and _assets and bb.get("equity"):
-        def _dupont_at(roe_series, rev_series):
-            """由 ROE 与营收 run-rate 反解三项 —— 共享实现，见 financials。"""
-            return financials.dupont_from_engine(
-                roe_rr=roe_series[-1], rev_rr=rev_series[-1],
-                total_assets=_assets, shareholders_equity=bb["equity"])
-
-        dm = _dupont_at(res["roe_p50"], _rev)
-        if dm:
-            if T.DUPONT_FORMULA:
-                # 与下方三个指标同级：这是本段的分解式，不是脚注
-                st.markdown(f"**{T.DUPONT_FORMULA}**")
-            if _t("DUPONT_DYNAMIC_NOTE", ""):
-                st.caption(_t("DUPONT_DYNAMIC_NOTE", ""))
-
-            pm = None
-            if prev and prev.get("rev") and prev.get("roe"):
-                pm = _dupont_at(prev["roe"], prev["rev"])
-
-            d1, d2, d3 = st.columns(3)
-            d1.metric(T.label("net_margin"), f"{dm['net_margin']:+.1%}",
-                      help=T.tip("net_margin"))
-            d2.metric(T.label("asset_turnover"), f"{dm['asset_turnover']:.2f}",
-                      help=T.tip("asset_turnover"))
-            d3.metric(T.label("equity_multiplier"), f"{dm['equity_multiplier']:.2f}",
-                      help=f"{T.tip('equity_multiplier')}\n\n"
-                           f"{_t('DUPONT_EM_STATIC', '')}")
-            _ptag = _t("PREV_ROUND_TAG", "上一轮：{v}")
-            if pm:
-                d1.caption(_ptag.format(v=f"{pm['net_margin']:+.1%}"))
-                d2.caption(_ptag.format(v=f"{pm['asset_turnover']:.2f}"))
-                d3.caption(_ptag.format(v=f"{pm['equity_multiplier']:.2f}"))
-            dupont = dm
+    if all(key in bb for key in ("total_revenue", "total_assets")):
+        dm = financials.compute_value_metrics(
+            operating_income=bb["ebit_base"], net_income=bb["net_income"],
+            total_revenue=bb["total_revenue"], total_assets=bb["total_assets"],
+            shareholders_equity=bb["equity"], interest_bearing_debt=bb["interest_bearing_debt"],
+            cash_and_equivalents=bb["cash_and_equivalents"], quadrant=quad,
+            tax_rate=bb["tax_rate"])
+        if T.DUPONT_FORMULA:
+            # 与下方三个指标同级：这是本段的分解式，不是脚注
+            st.markdown(f"**{T.DUPONT_FORMULA}**")
+        d1, d2, d3 = st.columns(3)
+        d1.metric(T.label("net_margin"), f"{dm['net_margin']:+.1%}", help=T.tip("net_margin"))
+        d2.metric(T.label("asset_turnover"), f"{dm['asset_turnover']:.2f}",
+                  help=T.tip("asset_turnover"))
+        d3.metric(T.label("equity_multiplier"), f"{dm['equity_multiplier']:.2f}",
+                  help=T.tip("equity_multiplier"))
+        dupont = {kk: dm[kk] for kk in
+                  ("net_margin", "asset_turnover", "equity_multiplier")}
 
     return dict(roe_end=roe_end, spread_end=spr_end, has_ebit=has_ebit,
                 beta_used=res["beta_used"], gamma_used=res["gamma_used"],
@@ -671,43 +619,13 @@ def render_game(k):
     r2 = T.READOUT_C2.format(a=you2["a_value"], spread=T.fmt_pct(you2.get(scorer)),
                              ally=(T.READOUT_ALLY if k["ally"] else ""))
     col_a, col_b = st.columns(2)
-    if _is_initial(k):
-        st.caption(_t("BASELINE_TAG_B", ""))
     col_a.markdown(f"**{_t('READOUT_TITLE_C1', '图一读数 · 象限内竞争')}**"); col_a.write(r1)
     col_a.caption(f"竞争类型：{T.COMPETITION_CN[c1['competition_type']]}（θ={C.THETA_Q[quad]}）")
     col_b.markdown(f"**{_t('READOUT_TITLE_C2', '图二读数 · 区域 / 全国竞合')}**"); col_b.write(r2)
 
-    # 图二横轴 aᵢ 的一句人话解释（常驻）——「非价格吸引力」是全站最抽象的一个量。
-    if _t("CHART2_XAXIS_NOTE", ""):
-        col_b.caption(_t("CHART2_XAXIS_NOTE", ""))
-
-    # ── 名次变动：给参照物，不只给当前值（同图上灰点线的思路）──
-    # 存在 session_state 里，与「对比上次」的中位线各存各的，互不干扰。
-    _now = (v.get("share_rank"), v.get("spread_rank"))
-    _prev = st.session_state.get("prev_ranks")
-    if _prev and _prev != _now and all(x is not None for x in _now + _prev):
-        st.markdown(f"**{_t('RANK_DELTA_TITLE', '名次变动')}**")
-        for lab, i in ((_t("RANK_LABEL_SHARE", "份额名次"), 0),
-                       (_t("RANK_LABEL_VALUE", "价值名次"), 1)):
-            d = _prev[i] - _now[i]          # 名次数字变小＝上升
-            arrow = (_t("RANK_ARROW_UP", "").format(n=d) if d > 0 else
-                     _t("RANK_ARROW_DOWN", "").format(n=-d) if d < 0 else
-                     _t("RANK_ARROW_SAME", ""))
-            st.caption(_t("RANK_DELTA_LINE", "{label}：第 {prev} 名 → 第 {now} 名{arrow}")
-                       .format(label=lab, prev=_prev[i], now=_now[i], arrow=arrow))
-    if all(x is not None for x in _now):
-        st.session_state["prev_ranks"] = _now
-
-    # 排名口径：两处最常被误解 —— 以为切换评估指标会改名次、或会改首屏裁决。
-    # 实际 game.py 里两个排序键写死（份额 / 价值），且不接收 scorer 参数。
-    if _t("RANK_BASIS_NOTE", ""):
-        st.caption(_t("RANK_BASIS_NOTE", ""))
-
     return dict(verdict=v, share=you1["share"], spread_game=you1["spread"],
                 a_value=you2["a_value"], in_alliance=you2["in_alliance"],
-                competition_type=c1["competition_type"],
-                readout_c1=r1)          # 透传：曾试过在首屏复用，因裁决句已占满
-                                        # 手机首屏而撤回；留着备用，无副作用
+                competition_type=c1["competition_type"])
 
 
 # ══════════════════════════ 象限地图 ══════════════════════════
@@ -747,8 +665,6 @@ _QUAD_CSS = """
   height:100%; box-sizing:border-box; border:1px solid; border-radius:12px;
   padding:.8rem .95rem; margin:0;
 }
-.qm-det{ border-left:4px solid var(--qm-accent); border-radius:8px;
-         padding:.65rem .85rem; margin:0 0 .55rem; }
 .qm-h{ font-weight:700; font-size:.98rem; line-height:1.35;
        border-left:4px solid; padding-left:.5rem; margin-bottom:.5rem; }
 .qm-f{ font-size:.82rem; color:#3E4F49; line-height:1.6; margin-bottom:.32rem; }
@@ -811,7 +727,7 @@ def render_quadrant_map(highlight=None, compact=False, show_play=True):
     窄屏保持 2×2，被隐藏的详情由下方 expander 兜住。
     """
     AX = getattr(T, "QUAD_AXIS", {
-        "y_title": "纵轴 · 价格层级", "y_top": "高端市场", "y_bot": "大众市场",
+        "y_title": "纵轴 · 价格层级", "y_top": "高端市场", "y_bot": "中低端大众市场",
         "x_title": "横轴 · 动力路线", "x_left": "纯电",
         "x_right": "多路线（混动 / 增程）"})
     if not compact:
@@ -843,22 +759,23 @@ def render_quadrant_map(highlight=None, compact=False, show_play=True):
     if not compact:
         with st.expander(getattr(T, "QUAD_DETAILS_LABEL",
                          "展开四象限完整说明（手机端建议点开）")):
-            # 用象限色复刻地图卡片的样式：纯 markdown 全是黑字，
-            # 四段读下来分不清哪段是哪个象限（手机端尤其），也和上方地图对不上。
-            # 配色规则不变——象限色＝"你是谁"，单一真相源仍是 copy_cn.QUAD_COLOR。
             for q in ("Q1", "Q2", "Q4", "Q3"):
                 cell = T.QUAD_CELL[q]
-                c = QUAD_COLOR.get(q, PRIMARY)
-                rows = "".join(
-                    f'<div class="qm-f"><b>{T.QUAD_FIELD[k]}</b>：{cell[k]}</div>'
-                    for k in ("feature", "anchors", "strategy"))
-                rows += (f'<div class="qm-f"><b>{T.QUAD_FIELD["params"]}</b>：'
-                         f'{_quad_stats(q)}</div>')
-                st.markdown(
-                    f'<div class="qm-det" style="--qm-accent:{c};background:{c}0F">'
-                    f'<div class="qm-h" style="border-color:{c};color:{c}">'
-                    f'{cell["name"]}</div>{rows}</div>',
-                    unsafe_allow_html=True)
+                st.markdown(f'**{cell["name"]}**')
+                for key in ("feature", "anchors", "strategy"):
+                    st.markdown(f'- **{T.QUAD_FIELD[key]}**：{cell[key]}')
+                st.markdown(f'- **{T.QUAD_FIELD["params"]}**：{_quad_stats(q)}')
+
+    if not compact:
+        st.caption(T.QUAD_MAP_NOTE)
+        if T.PARAM_BETA_DESC or T.PARAM_THETA_DESC:
+            st.divider()
+            st.markdown(f"**{T.PARAM_READ_TITLE}**")
+            if T.PARAM_BETA_DESC:
+                st.markdown(f"- **β**：{T.PARAM_BETA_DESC}")
+            if T.PARAM_THETA_DESC:
+                st.markdown(f"- **θ**：{T.PARAM_THETA_DESC}")
+
 
     if not compact:
         st.caption(T.QUAD_MAP_NOTE)
@@ -878,7 +795,7 @@ def render_appendix(quad):
     with st.expander("参数恢复表　(回归估计 vs 埋入真值 · 项目立身之本)", expanded=False):
         if _edb.IS_FALLBACK:
             st.warning(_t("FALLBACK_BANNER", ""))
-        tab = recovery_table()
+        tab = cached_recovery_table()
         show = tab.assign(
             covered=tab.covered.map({True: "✓", False: "✗"})
         ).rename(columns={"coefficient": "系数", "key": "象限/区域", "truth": "真值",
@@ -1042,24 +959,10 @@ def render_sandbox():
                 quad=T.QUAD_CELL[k["quad"]]["short"]))
         else:
             st.markdown(f"### {T.verdict_sentence(game_read['verdict'])}")
-            # 名次是最有冲击力的信号（份额第 1 / 价值第 6），原先只在图一下方，
-            # 拨完滑块要滚两屏才看得到。复用 render_game 已算好的同一行读数，
-            # 不重算 → 两处永远一致；图一下方那份保留（在图的语境里它是图注）。
-            if game_read.get("readout_c1"):
-                st.caption(game_read["readout_c1"])
-            # 洞见收进折叠区：折叠态只占一行，展开才是完整那段。
-            # 原先全拼在裁决句里，CREATE_TRAIL 达 105 字 / 手机 9 行，
-            # 把控制台推出首屏 —— 结论前置反而失效（宪章 §6）。
-            _why = _t("VERDICT_WHY", {}).get(game_read["verdict"].get("state"))
-            if _why:
-                with st.expander(_t("VERDICT_WHY_LABEL", "为什么会这样")):
-                    st.write(_why)
             # 两套口径（自身锚基线财报 / 裁决锚象限单位经济）符号可以相反。
             # DUAL_BASIS_NOTE 在简报末尾与 About，但矛盾出现在首屏，故此处即时点破。
-            # 用折叠区而非 caption：这段有四段，直接铺开会把控制台推出首屏（同 P5.8）。
             if _sign_conflict(self_read.get("spread_end"), game_read.get("spread_game")):
-                with st.expander(_t("DUAL_BASIS_LABEL", "为什么两处结论不一样")):
-                    st.markdown(_t("DUAL_BASIS_HINT", ""))
+                st.caption(_t("DUAL_BASIS_HINT", ""))
 
     # ── C 段 · 商业分析简报（Phase 4）──
     render_brief(k, self_read, game_read)
