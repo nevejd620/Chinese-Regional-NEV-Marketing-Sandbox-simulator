@@ -153,6 +153,9 @@ app.py               两 tab 界面（象限地图 / 沙盘）
 
 离线产物（生成的，但都随仓库走）
    nev.db · simulation_config.json · recovery_table.json · corpus/vecs.npz
+
+原型代码（不是本项目的代码，但是本项目的RAG原型代码）
+   RAG_prototype.ipynb
 ```
 
 ---
