@@ -4,7 +4,7 @@
 >
 > 一个可以拨动的定价沙盘：选一座城市、挑一种战略，然后打一场价格战——看着自己冲上销量第一，同时把价值输光。
 
-**🔗 [在线试玩](https://chinese-regional-nev-marketing-sandbox-simulator-3lpxhv6sebdda.streamlit.app/)**（免费部署，长时间无访问会休眠；若看到「Your app is in the oven」，等它醒来即可，通常半分钟内）
+**🔗 [在线试玩](https://chinese-regional-nev-marketing-sandbox-simulator-3lpxhv6sebdda.streamlit.app/)**（免费部署，长时间无访问会休眠；若看到「Your app is in the oven」，等它醒来即可，通常半分钟内；若一直白屏，可以尝试刷新一下页面）
 
 <details>
 <summary><b>English summary</b> (UI is in Chinese)</summary>
